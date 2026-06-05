@@ -1,0 +1,66 @@
+{
+  "theme": "light",
+  "archetype": "Organic & Earthy",
+  "typography": {
+    "fonts": {
+      "heading": "Manrope",
+      "body": "Karla"
+    },
+    "installation": "yarn add @fontsource/manrope @fontsource/karla",
+    "scales": {
+      "h1": "text-4xl sm:text-5xl tracking-tight leading-tight",
+      "h2": "text-2xl sm:text-3xl tracking-tight",
+      "h3": "text-xl sm:text-2xl",
+      "body": "text-base leading-relaxed",
+      "label": "text-xs uppercase tracking-[0.2em] font-semibold text-[#5C635A]"
+    }
+  },
+  "colors": {
+    "background": "#FAFAF8",
+    "surface": "#FFFFFF",
+    "surface_glass": "bg-white/70 backdrop-blur-xl border border-white/40",
+    "primary": "#1B4D3E",
+    "primary_hover": "#143a2e",
+    "secondary": "#E8ECE8",
+    "text": {
+      "main": "#1C1C1C",
+      "muted": "#5C635A"
+    },
+    "accent_warning": "#D27D46",
+    "border": "#E2E8E4"
+  },
+  "layout": {
+    "spacing_philosophy": "Generous spacing. Containers with borders MUST have internal padding (p-6 or p-8).",
+    "admin_grid": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+    "restaurant_grid": "grid-cols-1 gap-4 max-w-2xl mx-auto"
+  },
+  "components": {
+    "buttons": "Rounded-xl or pill-shaped. Deep Forest Green bg, White text. Use hover:-translate-y-[1px] and hover:shadow-md.",
+    "cards": "Flat background. 1px solid border (#E2E8E4). No shadow. Rounded-2xl.",
+    "inputs": "Shadcn defaults customized with #E2E8E4 border and #1B4D3E focus ring. Use rounded-xl.",
+    "tables": "Flat, cardless. Rows should have subtle bottom borders. Header text should be the 'label' typography.",
+    "stepper": "Custom numeric input for kg quantities. Pill-shaped, earthy background."
+  },
+  "motion": {
+    "default": "transition-all duration-200 ease-in-out",
+    "list_stagger": "Use Framer Motion to stagger entry of vegetable list items."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Subtle, match text color."
+  },
+  "media": {
+    "logo": "https://images.pexels.com/photos/36881511/pexels-photo-36881511.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "auth_background": "https://images.unsplash.com/photo-1708796705570-33fd29ef67d0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwxfHxmYXJtJTIwZ3JlZW5ob3VzZSUyMGludGVyaW9yJTIwZGF5bGlnaHR8ZW58MHx8fHwxNzgwNjgzNjQ3fDA&ixlib=rb-4.1.0&q=85",
+    "product_placeholder": "https://images.unsplash.com/photo-1755405711730-9d78d5353bff?crop=entropy&cs=srgb&fm=jpg&q=85"
+  },
+  "instructions_to_main_agent": [
+    "You are building for a React js (.js) environment, NOT TypeScript (.tsx). Generate plain JS files.",
+    "Enforce the Organic & Earthy archetype. The platform is for fresh vegetable supply.",
+    "For the restaurant view, focus on a mobile-first list where users can quickly tap '+' and '-' to order vegetables in kg. Use 'surface_glass' for a sticky bottom bar showing the live total bill.",
+    "For the admin view, implement a crisp dashboard grid with flat cards. Avoid unnecessary shadows.",
+    "ALL interactive elements (buttons, inputs, menu items, table rows) MUST include a 'data-testid' attribute (e.g., data-testid='login-submit-button').",
+    "Use Shadcn components heavily but strip the Vercel aesthetics to match the earthy colors.",
+    "Never use pure black or white where an earthy off-white (#FAFAF8) or charcoal (#1C1C1C) applies."
+  ]
+}
