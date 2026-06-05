@@ -1,54 +1,159 @@
-import { useEffect } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import Layout from "@/components/Layout";
+import RestaurantOrder from "@/pages/restaurant/RestaurantOrder";
+import RestaurantOrders from "@/pages/restaurant/RestaurantOrders";
+import RestaurantLedger from "@/pages/restaurant/RestaurantLedger";
+import PendingApproval from "@/pages/restaurant/PendingApproval";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AdminOrders from "@/pages/admin/AdminOrders";
+import AdminRates from "@/pages/admin/AdminRates";
+import AdminVegetables from "@/pages/admin/AdminVegetables";
+import AdminRestaurants from "@/pages/admin/AdminRestaurants";
+import AdminLedgers from "@/pages/admin/AdminLedgers";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function Splash() {
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        <p className="text-muted-foreground text-sm">Loading Jivdani…</p>
+      </div>
     </div>
   );
-};
+}
+
+function Protected({ role, children }) {
+  const { user } = useAuth();
+  if (user === null) return <Splash />;
+  if (user === false) return <Navigate to="/login" replace />;
+  if (role && user.role !== role) {
+    return <Navigate to={user.role === "admin" ? "/admin" : "/order"} replace />;
+  }
+  if (user.role === "restaurant" && user.status !== "active") {
+    return <PendingApproval />;
+  }
+  return children;
+}
+
+function RootRedirect() {
+  const { user } = useAuth();
+  if (user === null) return <Splash />;
+  if (user === false) return <Navigate to="/login" replace />;
+  return <Navigate to={user.role === "admin" ? "/admin" : "/order"} replace />;
+}
 
 function App() {
   return (
     <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<RootRedirect />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+
+            {/* Restaurant */}
+            <Route
+              path="/order"
+              element={
+                <Protected role="restaurant">
+                  <Layout>
+                    <RestaurantOrder />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/my-orders"
+              element={
+                <Protected role="restaurant">
+                  <Layout>
+                    <RestaurantOrders />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/my-ledger"
+              element={
+                <Protected role="restaurant">
+                  <Layout>
+                    <RestaurantLedger />
+                  </Layout>
+                </Protected>
+              }
+            />
+
+            {/* Admin */}
+            <Route
+              path="/admin"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminDashboard />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/admin/orders"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminOrders />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/admin/rates"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminRates />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/admin/vegetables"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminVegetables />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/admin/restaurants"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminRestaurants />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/admin/ledgers"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminLedgers />
+                  </Layout>
+                </Protected>
+              }
+            />
+          </Routes>
+        </BrowserRouter>
+        <Toaster position="top-center" richColors />
+      </AuthProvider>
     </div>
   );
 }

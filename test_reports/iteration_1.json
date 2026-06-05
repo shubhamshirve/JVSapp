@@ -1,0 +1,51 @@
+{
+  "summary": "End-to-end testing of Jivdani Vegetable Suppliers (B2B). Backend: 25/25 pytest cases passed covering auth, registration (incl. pending-approval), admin restaurant CRUD, vegetable CRUD + bulk rate update, complete order lifecycle (create -> confirm with override -> deliver), ledger/payments, role separation, and admin dashboards. Frontend: Admin login, dashboard stats+chart, restaurant add dialog (rest-form-*), self-registration -> PendingApproval screen, restaurant order placement with live total (+/- steppers), admin confirm dialog with qty/rate override + recalculated total, mark delivered, and admin ledger record-payment all work end-to-end. No critical issues found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/payments", "issue": "Accepts payments for restaurants with zero billed orders, producing a negative `pending` balance in /api/ledger and /api/admin/ledgers (no validation that amount<=pending). Reproduced when an old payment persisted after the restaurant whose orders existed was deleted - led to SelfReg row showing Billed=0, Paid=125, Pending=-125."},
+      {"endpoint": "DELETE /api/restaurants/{id}", "issue": "Does not cascade-delete the user's orders or payments. Orphan payment records remain and contribute to global stats (total_paid)."},
+      {"endpoint": "PUT /api/orders/{id}/status", "issue": "Uses status as query parameter instead of JSON body (works, but inconsistent with rest of the API which uses JSON)."},
+      {"endpoint": "GET /api/admin/stats", "issue": "`total_pending` is computed as bill_value - total_paid globally, so orphan payments make it inaccurate (can go negative)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Add Restaurant dialog, Record Payment dialog, Confirm Order dialog", "issues": ["Radix Dialog warning: Missing `Description` or `aria-describedby={undefined}` for DialogContent. Accessibility/a11y concern - add <DialogDescription> or aria-describedby."]},
+      {"screen": "AdminLedgers", "issues": ["Negative pending balances (e.g. ₹-125) are displayed in red as-is. Consider clamping at 0 or showing as 'Credit ₹125' when paid > billed."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add validation in POST /api/payments to reject amount > current pending balance (or at least reject if billed=0).",
+    "Cascade-clean orders & payments when DELETE /api/restaurants/{id} is called, OR exclude orphan payments from admin stats.",
+    "Add <DialogDescription> (or aria-describedby) to all DialogContent components (Add Restaurant, Confirm Order, Record Payment) for a11y compliance.",
+    "Optionally: clamp pending balance at 0 in UI/API and surface over-payments as 'Credit'.",
+    "Optionally: switch PUT /api/orders/{id}/status to accept JSON body for consistency."
+  ],
+  "critical_code_review_comments": [
+    "Backend file server.py is 639 lines, mixing models, helpers, auth, and 7 resource routers. Recommend splitting into routes/auth.py, routes/orders.py, routes/restaurants.py, models.py, deps.py for maintainability.",
+    "ObjectId(payload['sub']) and ObjectId(rid) in update_restaurant have no try/except - malformed IDs will raise InvalidId -> 500 instead of 400/404. Wrap with helper that returns 404.",
+    "JWT secret loaded from env but no rotation/refresh-token flow. 7-day access tokens are too long for production B2B.",
+    "verify_password swallows all exceptions and returns False - good for safety but masks bcrypt config issues. Log warnings.",
+    "_build_order_items silently drops items with qty<=0 or missing veg. Should return 400 with which veg failed to avoid confusing user when frontend bug submits empty payload.",
+    "No rate-limit or brute-force lockout on /api/auth/login (request specifically mentioned this as expected per playbook).",
+    "CORS allow_credentials=True with allow_origins='*' (when CORS_ORIGINS='*') is invalid per CORS spec; browser will reject. For production, set explicit origins.",
+    "Frontend AdminLedgers shows ₹-125 in red - confusing UX as it's actually a credit balance."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin: admin@jivdani.com / Jivdani@2026 (verified). Test restaurants are created dynamically per run with TEST_/uirest_/e2eself_ prefix and unique IDs.",
+  "seed_data_creation": "Backend tests dynamically create one self-reg restaurant and one admin-created restaurant per run with unique UUID suffix; cleanup fixture deletes both restaurants at session end (orders & payments NOT cleaned - see backend minor issue #2). UI test created additional restaurants in DB: uirest_<UNIQUE>@test.com and e2eself_<UNIQUE>@test.com.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 25 backend pytest cases in /app/backend/tests/backend_test.py pass against the public REACT_APP_BACKEND_URL. JWT auth uses Authorization: Bearer header (NOT cookies). Test fixtures use load_dotenv from /app/frontend/.env to source REACT_APP_BACKEND_URL because that var is not present in the python process env. Frontend test IDs for AdminRestaurants dialog inputs are rest-form-name/email/password/phone/address and rest-form-save (NOT add-restaurant-* as the request hinted). Restaurant order page has veg-plus-/veg-minus-/veg-qty-{id} steppers and live-total + submit-order-button. AdminOrders confirm dialog uses confirm-qty-{idx}/confirm-rate-{idx}/confirm-total/save-confirm-button. Orphan payments from previous runs may show negative pending balances on /admin/ledgers.",
+  "rca of the issue": "N/A - no critical issues. Minor: negative pending balance RCA - DELETE /api/restaurants/{id} only removes the user document and not the related orders/payments collections. When tests/cleanup remove a restaurant after recording payments, payments remain. Subsequently a new restaurant with no orders that receives a payment (UI race / wrong row picked) produces billed=0 paid>0 pending<0. Mitigation: either cascade-delete or run db.payments.delete_many({restaurant_id}) on restaurant deletion, and reject /api/payments when amount > pending."
+}
