@@ -445,6 +445,9 @@ async def update_restaurant(rid: str, data: RestaurantUpdateInput, user: dict = 
 @api_router.delete("/restaurants/{rid}")
 async def delete_restaurant(rid: str, user: dict = Depends(require_admin)):
     await db.users.delete_one({"_id": ObjectId(rid), "role": "restaurant"})
+    # Cascade clean related records to avoid orphaned orders/payments skewing stats
+    await db.orders.delete_many({"restaurant_id": rid})
+    await db.payments.delete_many({"restaurant_id": rid})
     return {"message": "Deleted"}
 
 
@@ -454,6 +457,8 @@ async def add_payment(data: PaymentInput, user: dict = Depends(require_admin)):
     rest = await db.users.find_one({"_id": ObjectId(data.restaurant_id)})
     if not rest:
         raise HTTPException(status_code=404, detail="Restaurant not found")
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
     doc = {
         "restaurant_id": data.restaurant_id,
         "restaurant_name": rest["name"],
