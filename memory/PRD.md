@@ -23,6 +23,13 @@ B2B web app for "Jivdani Vegetable Suppliers". 50+ restaurants currently send ve
 - 18 default vegetables seeded. Cascade delete on restaurant removal; payment amount validation.
 - Tested: 25/25 backend + full frontend e2e passed (iteration_1).
 
+## Implemented (Iteration 2)
+- Admin Orders: search by restaurant + delete order (DELETE /api/orders/{id}).
+- Admin Restaurants: search by name/email + full edit dialog (name/phone/address/password).
+- Restaurant My Orders: search (date/vegetable) + status filter chips.
+- **Daily Consolidated Purchase List** (/admin/purchase-list): aggregates total qty & est cost per vegetable across all restaurants for a chosen delivery date (pending+confirmed), with print support — for next-morning buying.
+- Tested: 34/34 backend + full frontend e2e passed (iteration_2).
+
 ## Personas
 - **Admin (Jivdani owner)**: manages rates, confirms orders, tracks dues.
 - **Restaurant**: places daily orders, views bills & ledger.
