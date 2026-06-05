@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { api, formatApiError, inr } from "@/lib/api";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Search, Minus, Plus, ShoppingBasket, Loader2, CheckCircle2, Truck, RotateCcw } from "lucide-react";
+import { Search, Minus, Plus, ShoppingBasket, Loader2, CheckCircle2, Truck, RotateCcw, Lock, Clock } from "lucide-react";
 import { Card } from "@/components/Shared";
 
 export default function RestaurantOrder() {
@@ -13,11 +14,37 @@ export default function RestaurantOrder() {
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState(null);
   const [lastOrder, setLastOrder] = useState(null);
+  const [settings, setSettings] = useState(null);
+  const location = useLocation();
 
   useEffect(() => {
     api.get("/vegetables").then((r) => setVegetables(r.data));
     api.get("/orders").then((r) => setLastOrder(r.data[0] || null));
+    api.get("/settings").then((r) => setSettings(r.data));
   }, []);
+
+  useEffect(() => {
+    const rep = location.state?.repeat;
+    if (!rep || vegetables.length === 0) return;
+    const activeIds = new Set(vegetables.map((v) => v.id));
+    const next = {};
+    let skipped = 0;
+    rep.forEach((it) => {
+      if (activeIds.has(it.vegetable_id)) next[it.vegetable_id] = it.qty;
+      else skipped += 1;
+    });
+    const count = Object.keys(next).length;
+    if (count > 0) {
+      setQty(next);
+      toast.success(
+        `Loaded ${count} item${count > 1 ? "s" : ""} from the selected order${skipped ? ` · ${skipped} no longer available` : ""}.`
+      );
+    } else {
+      toast.error("None of the items from that order are available today.");
+    }
+    window.history.replaceState({}, "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vegetables]);
 
   const repeatLast = () => {
     if (!lastOrder) return;
@@ -56,6 +83,10 @@ export default function RestaurantOrder() {
   const totalItems = lineItems.length;
 
   const submit = async () => {
+    if (settings?.is_locked) {
+      toast.error("Ordering is closed for today. Please order before the cut-off time.");
+      return;
+    }
     if (totalItems === 0) {
       toast.error("Add at least one vegetable to your order.");
       return;
@@ -136,6 +167,24 @@ export default function RestaurantOrder() {
           </button>
         )}
       </div>
+
+      {settings?.cutoff_enabled && (
+        settings.is_locked ? (
+          <div data-testid="cutoff-banner" className="mb-5 rounded-2xl border border-[#D27D46]/40 bg-[#D27D46]/10 p-4 flex items-center gap-3">
+            <Lock className="h-5 w-5 text-[#9c531f] shrink-0" />
+            <div>
+              <p className="font-semibold text-[#9c531f]">Ordering closed for today</p>
+              <p className="text-sm text-[#9c531f]/80">
+                Today's cut-off ({settings.cutoff_time} IST) has passed. Please order before {settings.cutoff_time} for next-morning delivery.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p data-testid="cutoff-hint" className="mb-5 text-sm text-muted-foreground flex items-center gap-1.5">
+            <Clock className="h-4 w-4" /> Order before <b className="text-foreground">{settings.cutoff_time} IST</b> for tomorrow morning's delivery.
+          </p>
+        )
+      )}
 
       <div className="relative mb-5 max-w-md">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -226,7 +275,7 @@ export default function RestaurantOrder() {
             <button
               data-testid="submit-order-button"
               onClick={submit}
-              disabled={submitting || totalItems === 0}
+              disabled={submitting || totalItems === 0 || settings?.is_locked}
               className="flex items-center gap-2 rounded-xl bg-primary text-primary-foreground px-6 py-3.5 font-semibold hover:bg-[#143a2e] hover:-translate-y-[1px] hover:shadow-md transition-all disabled:opacity-50 disabled:hover:translate-y-0"
             >
               {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShoppingBasket className="h-5 w-5" />}

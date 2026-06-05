@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict, BeforeValidator
 from typing import List, Optional, Annotated, Any
 from datetime import datetime, timezone, date, timedelta
+from zoneinfo import ZoneInfo
 from bson import ObjectId
 import bcrypt
 import jwt
@@ -43,6 +44,32 @@ def today_str() -> str:
 
 def tomorrow_str() -> str:
     return (now_utc().date() + timedelta(days=1)).isoformat()
+
+
+DEFAULT_TZ = "Asia/Kolkata"
+
+
+async def get_settings_doc() -> dict:
+    doc = await db.settings.find_one({"_id": "global"})
+    if not doc:
+        doc = {"_id": "global", "cutoff_enabled": False, "cutoff_time": "20:00", "timezone": DEFAULT_TZ}
+        await db.settings.insert_one(doc)
+    # Internal helper: settings uses string _id ("global"), safe to return.
+    return dict(doc)
+
+
+def compute_lock(doc: dict):
+    tz = ZoneInfo(doc.get("timezone") or DEFAULT_TZ)
+    now_local = datetime.now(tz)
+    locked = False
+    if doc.get("cutoff_enabled"):
+        try:
+            hh, mm = (int(x) for x in str(doc.get("cutoff_time", "20:00")).split(":"))
+            cutoff_dt = now_local.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            locked = now_local >= cutoff_dt
+        except Exception:
+            locked = False
+    return locked, now_local
 
 
 def hash_password(password: str) -> str:
@@ -196,6 +223,11 @@ class PaymentInput(BaseModel):
     note: Optional[str] = ""
 
 
+class SettingsUpdate(BaseModel):
+    cutoff_enabled: Optional[bool] = None
+    cutoff_time: Optional[str] = None
+
+
 # ----------------------------- Auth Routes -----------------------------
 @api_router.post("/auth/register")
 async def register(data: RegisterInput):
@@ -314,6 +346,13 @@ async def _build_order_items(items: List[OrderItemInput]):
 
 @api_router.post("/orders")
 async def create_order(data: OrderCreateInput, user: dict = Depends(require_active_restaurant)):
+    settings = await get_settings_doc()
+    locked, _ = compute_lock(settings)
+    if locked:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Ordering is closed for today (cut-off {settings.get('cutoff_time')} IST). Please order before the cut-off for next-morning delivery.",
+        )
     items, total = await _build_order_items(data.items)
     if not items:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
@@ -614,6 +653,40 @@ async def all_ledgers(user: dict = Depends(require_admin)):
             "pending": pending,
         })
     return result
+
+
+@api_router.get("/settings")
+async def get_settings(user: dict = Depends(get_current_user)):
+    doc = await get_settings_doc()
+    locked, now_local = compute_lock(doc)
+    return {
+        "cutoff_enabled": doc.get("cutoff_enabled", False),
+        "cutoff_time": doc.get("cutoff_time", "20:00"),
+        "timezone": doc.get("timezone", DEFAULT_TZ),
+        "is_locked": locked,
+        "server_time": now_local.strftime("%H:%M"),
+    }
+
+
+@api_router.put("/settings")
+async def update_settings(data: SettingsUpdate, user: dict = Depends(require_admin)):
+    update = {k: v for k, v in data.model_dump().items() if v is not None}
+    if "cutoff_time" in update:
+        try:
+            hh, mm = (int(x) for x in str(update["cutoff_time"]).split(":"))
+            assert 0 <= hh < 24 and 0 <= mm < 60
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid time. Use HH:MM (24-hour).")
+    await db.settings.update_one({"_id": "global"}, {"$set": update}, upsert=True)
+    doc = await get_settings_doc()
+    locked, now_local = compute_lock(doc)
+    return {
+        "cutoff_enabled": doc.get("cutoff_enabled", False),
+        "cutoff_time": doc.get("cutoff_time", "20:00"),
+        "timezone": doc.get("timezone", DEFAULT_TZ),
+        "is_locked": locked,
+        "server_time": now_local.strftime("%H:%M"),
+    }
 
 
 @api_router.get("/")

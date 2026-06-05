@@ -30,6 +30,11 @@ B2B web app for "Jivdani Vegetable Suppliers". 50+ restaurants currently send ve
 - **Daily Consolidated Purchase List** (/admin/purchase-list): aggregates total qty & est cost per vegetable across all restaurants for a chosen delivery date (pending+confirmed), with print support — for next-morning buying.
 - Tested: 34/34 backend + full frontend e2e passed (iteration_2).
 
+## Implemented (Iteration 3)
+- **Repeat last order** button on the order screen (loads latest order at today's rates).
+- **Per-order Repeat** ("Repeat this order") on each past order in My Orders → re-order any specific order via router state, recalculated at today's rates, skips unavailable items.
+- **Admin-configurable order cut-off** (new Settings page `/admin/settings`): toggle + time (IST/Asia-Kolkata). After cut-off, backend blocks new orders (403) and the order screen shows a lock banner + disabled submit; the morning purchase list locks automatically. Backend: GET/PUT `/api/settings`, settings collection, IST-aware `compute_lock`.
+
 ## Personas
 - **Admin (Jivdani owner)**: manages rates, confirms orders, tracks dues.
 - **Restaurant**: places daily orders, views bills & ledger.

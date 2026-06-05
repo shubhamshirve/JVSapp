@@ -10,6 +10,7 @@ import {
   Store,
   ReceiptText,
   ClipboardList,
+  Settings,
   LogOut,
   Menu,
   X,
@@ -24,6 +25,7 @@ const adminNav = [
   { to: "/admin/vegetables", label: "Vegetables", icon: Carrot },
   { to: "/admin/restaurants", label: "Restaurants", icon: Store },
   { to: "/admin/ledgers", label: "Ledgers", icon: ReceiptText },
+  { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 const restNav = [

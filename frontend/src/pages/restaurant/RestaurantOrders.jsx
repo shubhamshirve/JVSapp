@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, inr } from "@/lib/api";
 import { PageHeader, StatusBadge, Card, EmptyState } from "@/components/Shared";
-import { ScrollText, Truck, ChevronDown, Search } from "lucide-react";
+import { ScrollText, Truck, ChevronDown, Search, RotateCcw } from "lucide-react";
 
 export default function RestaurantOrders() {
+  const navigate = useNavigate();
+  const repeat = (o) => navigate("/order", { state: { repeat: o.items } });
   const [orders, setOrders] = useState([]);
   const [open, setOpen] = useState(null);
   const [search, setSearch] = useState("");
@@ -100,6 +103,13 @@ export default function RestaurantOrders() {
                     ))}
                   </div>
                   {o.notes && <p className="text-sm text-muted-foreground mt-3">Note: {o.notes}</p>}
+                  <button
+                    data-testid={`repeat-order-${o.id}`}
+                    onClick={() => repeat(o)}
+                    className="mt-4 flex items-center gap-2 rounded-xl border border-primary text-primary px-4 py-2.5 text-sm font-semibold hover:bg-primary/10 transition-all"
+                  >
+                    <RotateCcw className="h-4 w-4" /> Repeat this order
+                  </button>
                 </div>
               )}
             </Card>
