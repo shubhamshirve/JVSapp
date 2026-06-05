@@ -8,13 +8,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollText, Minus, Plus, Check, Truck } from "lucide-react";
+import { ScrollText, Minus, Plus, Check, Truck, Search, Trash2 } from "lucide-react";
 
 const FILTERS = ["all", "pending", "confirmed", "delivered"];
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [editing, setEditing] = useState(null); // order being confirmed
   const [items, setItems] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -69,6 +70,21 @@ export default function AdminOrders() {
     }
   };
 
+  const delOrder = async (o) => {
+    if (!window.confirm(`Delete this order from ${o.restaurant_name}? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/orders/${o.id}`);
+      toast.success("Order deleted");
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
+  const shown = orders.filter((o) =>
+    o.restaurant_name.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div>
       <PageHeader title="Orders" subtitle="Confirm quantities & rates, then mark delivered." />
@@ -88,13 +104,24 @@ export default function AdminOrders() {
         ))}
       </div>
 
-      {orders.length === 0 ? (
+      <div className="relative mb-5 max-w-md">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          data-testid="order-search-input"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by restaurant…"
+          className="w-full rounded-xl border border-input bg-white pl-10 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+        />
+      </div>
+
+      {shown.length === 0 ? (
         <Card>
           <EmptyState icon={ScrollText} title="No orders found" subtitle="Orders placed by restaurants will appear here." />
         </Card>
       ) : (
         <div className="space-y-3">
-          {orders.map((o) => (
+          {shown.map((o) => (
             <Card key={o.id} className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="min-w-0">
@@ -129,6 +156,14 @@ export default function AdminOrders() {
                       Mark Delivered
                     </button>
                   )}
+                  <button
+                    data-testid={`delete-order-${o.id}`}
+                    onClick={() => delOrder(o)}
+                    title="Delete order"
+                    className="p-2.5 rounded-xl text-destructive hover:bg-destructive/10 transition-all"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">

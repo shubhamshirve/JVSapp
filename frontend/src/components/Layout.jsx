@@ -9,6 +9,7 @@ import {
   Tags,
   Store,
   ReceiptText,
+  ClipboardList,
   LogOut,
   Menu,
   X,
@@ -18,6 +19,7 @@ import {
 const adminNav = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/orders", label: "Orders", icon: ScrollText },
+  { to: "/admin/purchase-list", label: "Purchase List", icon: ClipboardList },
   { to: "/admin/rates", label: "Daily Rates", icon: Tags },
   { to: "/admin/vegetables", label: "Vegetables", icon: Carrot },
   { to: "/admin/restaurants", label: "Restaurants", icon: Store },

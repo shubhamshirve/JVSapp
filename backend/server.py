@@ -401,6 +401,14 @@ async def update_order_status(order_id: str, status: str, user: dict = Depends(r
     return serialize(doc)
 
 
+@api_router.delete("/orders/{order_id}")
+async def delete_order(order_id: str, user: dict = Depends(require_admin)):
+    res = await db.orders.delete_one({"_id": ObjectId(order_id)})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {"message": "Deleted"}
+
+
 # ----------------------------- Restaurant (user) management -----------------------------
 @api_router.get("/restaurants")
 async def list_restaurants(status: Optional[str] = None, user: dict = Depends(require_admin)):
@@ -540,6 +548,51 @@ async def admin_stats(user: dict = Depends(require_admin)):
         "pending_approvals": pending_approvals,
         "recent_orders": [serialize(o) for o in recent],
         "chart": chart,
+    }
+
+
+@api_router.get("/admin/purchase-list")
+async def purchase_list(delivery_date: Optional[str] = None, user: dict = Depends(require_admin)):
+    target = delivery_date or tomorrow_str()
+    orders = await db.orders.find({
+        "delivery_date": target,
+        "status": {"$in": ["pending", "confirmed"]},
+    }).to_list(5000)
+    agg = {}
+    restaurants = set()
+    for o in orders:
+        restaurants.add(o.get("restaurant_name"))
+        for it in o.get("items", []):
+            key = it["vegetable_id"]
+            if key not in agg:
+                agg[key] = {
+                    "vegetable_id": key,
+                    "name": it["name"],
+                    "unit": it.get("unit", "kg"),
+                    "total_qty": 0.0,
+                    "est_amount": 0.0,
+                    "rate": float(it.get("rate", 0)),
+                    "restaurants": set(),
+                }
+            agg[key]["total_qty"] += float(it.get("qty", 0))
+            agg[key]["est_amount"] += float(it.get("amount", 0))
+            agg[key]["restaurants"].add(o.get("restaurant_name"))
+    items = [{
+        "vegetable_id": v["vegetable_id"],
+        "name": v["name"],
+        "unit": v["unit"],
+        "total_qty": round(v["total_qty"], 2),
+        "rate": v["rate"],
+        "est_amount": round(v["est_amount"], 2),
+        "restaurants": len(v["restaurants"]),
+    } for v in agg.values()]
+    items.sort(key=lambda x: x["name"])
+    return {
+        "date": target,
+        "order_count": len(orders),
+        "restaurant_count": len(restaurants),
+        "total_amount": round(sum(i["est_amount"] for i in items), 2),
+        "items": items,
     }
 
 

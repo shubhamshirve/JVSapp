@@ -15,6 +15,7 @@ import AdminRates from "@/pages/admin/AdminRates";
 import AdminVegetables from "@/pages/admin/AdminVegetables";
 import AdminRestaurants from "@/pages/admin/AdminRestaurants";
 import AdminLedgers from "@/pages/admin/AdminLedgers";
+import AdminPurchaseList from "@/pages/admin/AdminPurchaseList";
 
 function Splash() {
   return (
@@ -146,6 +147,16 @@ function App() {
                 <Protected role="admin">
                   <Layout>
                     <AdminLedgers />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/admin/purchase-list"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminPurchaseList />
                   </Layout>
                 </Protected>
               }
