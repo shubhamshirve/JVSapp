@@ -1,0 +1,19 @@
+# Caddyfile — serves the React SPA and reverse-proxies the API to the backend.
+# SITE_ADDRESS: ":80" or "localhost" for local; a domain (e.g. jivdani.example.com)
+# in production to get automatic HTTPS via Let's Encrypt.
+
+{$SITE_ADDRESS::80} {
+	encode gzip zstd
+
+	# All API traffic -> FastAPI backend container
+	handle /api/* {
+		reverse_proxy backend:8001
+	}
+
+	# Everything else -> static SPA with client-side routing fallback
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

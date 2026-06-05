@@ -1,0 +1,12 @@
+**/node_modules
+**/__pycache__
+**/*.pyc
+frontend/build
+.git
+.gitignore
+*.log
+test_reports
+tests
+memory
+*.md
+.env

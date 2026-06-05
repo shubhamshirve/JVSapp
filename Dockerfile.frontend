@@ -1,0 +1,24 @@
+# ---- Stage 1: build the React app ----
+FROM node:20-alpine AS build
+
+WORKDIR /app/frontend
+
+COPY frontend/package.json frontend/yarn.lock ./
+RUN yarn install --frozen-lockfile
+
+COPY frontend/ .
+
+# API base URL is baked at build time. For a single-domain Caddy deploy this should
+# be your public site URL (e.g. https://jivdani.example.com). The app then calls
+# `${REACT_APP_BACKEND_URL}/api/...` which Caddy reverse-proxies to the backend.
+ARG REACT_APP_BACKEND_URL
+ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
+ENV ENABLE_HEALTH_CHECK=false
+
+RUN yarn build
+
+# ---- Stage 2: Caddy serves static files + reverse-proxies /api ----
+FROM caddy:2-alpine
+
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/frontend/build /srv
