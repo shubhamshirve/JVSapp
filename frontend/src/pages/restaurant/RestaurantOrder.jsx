@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, formatApiError, inr } from "@/lib/api";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Search, Minus, Plus, ShoppingBasket, Loader2, CheckCircle2, Truck } from "lucide-react";
+import { Search, Minus, Plus, ShoppingBasket, Loader2, CheckCircle2, Truck, RotateCcw } from "lucide-react";
 import { Card } from "@/components/Shared";
 
 export default function RestaurantOrder() {
@@ -12,10 +12,32 @@ export default function RestaurantOrder() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState(null);
+  const [lastOrder, setLastOrder] = useState(null);
 
   useEffect(() => {
     api.get("/vegetables").then((r) => setVegetables(r.data));
+    api.get("/orders").then((r) => setLastOrder(r.data[0] || null));
   }, []);
+
+  const repeatLast = () => {
+    if (!lastOrder) return;
+    const activeIds = new Set(vegetables.map((v) => v.id));
+    const next = {};
+    let skipped = 0;
+    lastOrder.items.forEach((it) => {
+      if (activeIds.has(it.vegetable_id)) next[it.vegetable_id] = it.qty;
+      else skipped += 1;
+    });
+    const count = Object.keys(next).length;
+    if (count === 0) {
+      toast.error("None of the items from your last order are available today.");
+      return;
+    }
+    setQty(next);
+    toast.success(
+      `Loaded ${count} item${count > 1 ? "s" : ""} from your last order${skipped ? ` · ${skipped} no longer available` : ""}.`
+    );
+  };
 
   const setVal = (id, v) => {
     const val = Math.max(0, Math.round(v * 4) / 4); // 0.25 steps
@@ -43,6 +65,7 @@ export default function RestaurantOrder() {
       const items = lineItems.map((i) => ({ vegetable_id: i.id, qty: i.q }));
       const { data } = await api.post("/orders", { items, notes });
       setPlaced(data);
+      setLastOrder(data);
       setQty({});
       setNotes("");
       toast.success("Order placed successfully!");
@@ -96,11 +119,22 @@ export default function RestaurantOrder() {
 
   return (
     <div className="pb-32">
-      <div className="mb-6">
-        <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight">Today's Order</h1>
-        <p className="text-muted-foreground mt-1">
-          Tap + / − to set quantity in kg. Bill updates live with today's market rates.
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight">Today's Order</h1>
+          <p className="text-muted-foreground mt-1">
+            Tap + / − to set quantity in kg. Bill updates live with today's market rates.
+          </p>
+        </div>
+        {lastOrder && (
+          <button
+            data-testid="repeat-last-order-button"
+            onClick={repeatLast}
+            className="flex items-center gap-2 rounded-xl border border-primary text-primary px-4 py-2.5 text-sm font-semibold hover:bg-primary/10 hover:-translate-y-[1px] transition-all"
+          >
+            <RotateCcw className="h-4 w-4" /> Repeat last order
+          </button>
+        )}
       </div>
 
       <div className="relative mb-5 max-w-md">
