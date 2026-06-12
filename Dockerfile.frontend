@@ -3,8 +3,8 @@ FROM node:20-alpine AS build
 
 WORKDIR /app/frontend
 
-COPY frontend/package.json frontend/yarn.lock ./
-RUN yarn install --frozen-lockfile
+COPY frontend/package.json ./
+RUN yarn install --network-timeout 1000000
 
 COPY frontend/ .
 
@@ -14,6 +14,7 @@ COPY frontend/ .
 ARG REACT_APP_BACKEND_URL
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
 ENV ENABLE_HEALTH_CHECK=false
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 RUN yarn build
 

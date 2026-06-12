@@ -35,6 +35,12 @@ B2B web app for "Jivdani Vegetable Suppliers". 50+ restaurants currently send ve
 - **Per-order Repeat** ("Repeat this order") on each past order in My Orders → re-order any specific order via router state, recalculated at today's rates, skips unavailable items.
 - **Admin-configurable order cut-off** (new Settings page `/admin/settings`): toggle + time (IST/Asia-Kolkata). After cut-off, backend blocks new orders (403) and the order screen shows a lock banner + disabled submit; the morning purchase list locks automatically. Backend: GET/PUT `/api/settings`, settings collection, IST-aware `compute_lock`.
 
+## Implemented (Iteration 4)
+- **Deployment & Seeding Resolution**: Resolved MongoDB crash on host without AVX instruction support by downgrading MongoDB from version 7 to `4.4`.
+- **Environment Template**: Created `.env.example` file.
+- **Deployment Automation**: Added `deploy.sh` script to pull changes and redeploy automatically using `docker-compose`.
+- **E2E Status**: Successfully deployed to `45.196.196.114`, seeded admin user (`admin@jivdani.com`) and 18 default vegetables.
+
 ## Personas
 - **Admin (Jivdani owner)**: manages rates, confirms orders, tracks dues.
 - **Restaurant**: places daily orders, views bills & ledger.
