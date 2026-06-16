@@ -6,28 +6,28 @@ WORKDIR /app/frontend
 # Allow bigger heap for webpack on small VPS
 ENV NODE_OPTIONS=--max-old-space-size=2048
 
-# Copy package files — yarn.lock optional but preferred for reproducibility
+# Install pnpm globally
+RUN npm install -g pnpm
+
+# Copy package.json first (cache layer — only re-runs if deps change)
 COPY frontend/package.json ./
-# yarn.loc[k] glob makes yarn.lock optional if not committed yet
-COPY frontend/package.json frontend/yarn.loc[k] ./
 
-RUN yarn install --network-timeout 300000
+# Install dependencies (no lockfile on first run — pnpm generates one)
+RUN pnpm install --no-frozen-lockfile
 
+# Copy full source
 COPY frontend/ .
 
-# REACT_APP_BACKEND_URL="" → relative /api path → Caddy proxies it to backend
+# REACT_APP_BACKEND_URL="" → relative /api path → Caddy proxies to backend
 ARG REACT_APP_BACKEND_URL=""
 ENV REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL}
 
-RUN yarn build
+RUN pnpm build
 
 # ---- Stage 2: Serve with Caddy ----
 FROM caddy:2-alpine
 
-# Built React SPA goes to /srv (matches Caddyfile)
 COPY --from=builder /app/frontend/build /srv
-
-# Use the existing Caddyfile from repo root
 COPY Caddyfile /etc/caddy/Caddyfile
 
 EXPOSE 80 443
