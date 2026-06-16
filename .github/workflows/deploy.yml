@@ -18,6 +18,8 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key:      ${{ secrets.SSH_PRIVATE_KEY }}
           port:     22
+          timeout:         60s
+          command_timeout: 60m
           script: |
             set -e
 
@@ -26,7 +28,7 @@ jobs:
             git pull origin main
 
             echo "==> [2/4] Building & starting containers..."
-            docker compose -f docker-compose.prod.yml up --build -d
+            DOCKER_BUILDKIT=1 docker compose -f docker-compose.prod.yml up --build -d
 
             echo "==> [3/4] Cleaning up Docker artifacts..."
 

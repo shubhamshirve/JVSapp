@@ -6,10 +6,7 @@ WORKDIR /app/backend
 # Install dependencies first (layer caching)
 COPY backend/requirements.txt .
 
-# emergentintegrations is hosted on a private index — must include extra-index-url
-RUN pip install --no-cache-dir \
-    --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ \
-    -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source
 COPY backend/ .
