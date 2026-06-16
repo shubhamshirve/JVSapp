@@ -49,8 +49,15 @@ services:
         REACT_APP_BACKEND_URL: ""
     container_name: jvs_frontend
     restart: unless-stopped
+    environment:
+      # ":80" for IP-only access. Change to "yourdomain.com" for auto-HTTPS.
+      SITE_ADDRESS: "${SITE_ADDRESS:-:80}"
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      # Caddy stores Let's Encrypt certs here (needed if using a domain)
+      - caddy_data:/data
     depends_on:
       - backend
     networks:
@@ -63,6 +70,7 @@ services:
 
 volumes:
   mongo_data:
+  caddy_data:
 
 networks:
   jvs_net:

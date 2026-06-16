@@ -36,9 +36,10 @@ JWT_SECRET=$(openssl rand -hex 32)
 EOF
 echo ".env created. Change ADMIN_PASSWORD and JWT_SECRET before going live!"
 
-echo "=== 5. Opening firewall port 80 ==="
-ufw allow 80/tcp || true
-ufw allow 22/tcp || true
+echo "=== 5. Opening firewall ports 80 & 443 ==="
+ufw allow 80/tcp  || true
+ufw allow 443/tcp || true
+ufw allow 22/tcp  || true
 
 echo ""
 echo "======================================================"
