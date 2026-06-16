@@ -9,10 +9,13 @@ ENV NODE_OPTIONS=--max-old-space-size=2048
 # Install pnpm globally
 RUN npm install -g pnpm
 
+# Disable corepack strict mode so pnpm works even though package.json declares yarn
+ENV COREPACK_ENABLE_STRICT=0
+
 # Copy package.json first (cache layer — only re-runs if deps change)
 COPY frontend/package.json ./
 
-# Install dependencies (no lockfile on first run — pnpm generates one)
+# Install dependencies
 RUN pnpm install --no-frozen-lockfile
 
 # Copy full source
