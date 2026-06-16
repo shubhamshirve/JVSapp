@@ -23,6 +23,7 @@ services:
         max-file: "3"
 
   backend:
+    image: ${IMAGE_REPO:-jvsapp-local}/backend:latest
     build:
       context: .
       dockerfile: Dockerfile.backend
@@ -47,6 +48,7 @@ services:
         max-file: "3"
 
   frontend:
+    image: ${IMAGE_REPO:-jvsapp-local}/frontend:latest
     build:
       context: .
       dockerfile: Dockerfile.frontend

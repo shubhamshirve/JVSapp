@@ -111,3 +111,36 @@ docker compose exec mongo mongorestore --archive=/tmp/backup.archive
   the domain you're visiting. Rebuild `caddy` after changing it.
 - **No HTTPS cert**: confirm the domain's DNS points to this server and ports 80/443
   are reachable from the internet; Caddy needs them to complete the ACME challenge.
+
+---
+
+## CI/CD via GitHub Actions (GHCR-cached deploys)
+
+The workflow at `.github/workflows/deploy.yml` runs on every push to `main`:
+
+1. **Build job** (on a GitHub-hosted runner — fast, plenty of RAM):
+   - Builds backend & frontend images using BuildKit with cache reuse
+     (`type=gha,mode=max`).
+   - Pushes them to **GitHub Container Registry** (`ghcr.io/<owner>/<repo>/backend:latest`
+     and `…/frontend:latest`, plus a SHA-tagged copy for traceability).
+2. **Deploy job** SSHes into the VPS and runs `docker compose pull && up -d`.
+   The VPS never builds anything — it just pulls and restarts. Code-only deploys
+   now take **~20–30 s** instead of 10–15 minutes.
+
+### First-time GHCR setup
+The first push will create two private packages at
+`https://github.com/<owner>?tab=packages`. The workflow already logs the VPS into
+GHCR using a temporary `GITHUB_TOKEN`, so **nothing extra is needed** unless you
+want the images public (Packages → ⋯ → Change visibility → Public).
+
+### Required GitHub Secrets
+| Secret | Purpose |
+|---|---|
+| `VPS_HOST` | Your VPS IP / hostname |
+| `VPS_USER` | SSH user (e.g. `root`) |
+| `SSH_PRIVATE_KEY` | Private key matching the public key on the VPS |
+
+### Local builds still work
+`docker-compose.prod.yml` keeps a `build:` section as fallback. If `IMAGE_REPO`
+isn't set, `docker compose build` builds locally exactly as before.
+
