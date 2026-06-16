@@ -24,6 +24,8 @@ COPY frontend/ .
 # REACT_APP_BACKEND_URL="" → relative /api path → Caddy proxies to backend
 ARG REACT_APP_BACKEND_URL=""
 ENV REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL}
+# Skip ESLint during production build (avoids version conflicts with pnpm-resolved deps)
+ENV DISABLE_ESLINT_PLUGIN=true
 
 RUN pnpm run build
 
