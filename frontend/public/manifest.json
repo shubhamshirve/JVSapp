@@ -1,0 +1,26 @@
+{
+  "short_name": "Jivdani",
+  "name": "Jivdani Vegetable Suppliers",
+  "description": "B2B vegetable supply management for restaurants",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#1B4D3E",
+  "background_color": "#F9FBF9",
+  "categories": ["food", "business", "productivity"]
+}

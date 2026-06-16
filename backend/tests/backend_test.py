@@ -310,6 +310,383 @@ class TestAdminDashboards:
         assert state["rest_id"] in ids
 
 
+# ----------------------------- Suppliers CRUD -----------------------------
+class TestSuppliers:
+    def test_create_supplier(self, admin_headers, state):
+        r = requests.post(f"{API}/suppliers", headers=admin_headers, json={
+            "name": "Fresh Farms",
+            "phone": "9876543210",
+            "address": "Mumbai Market",
+            "notes": "Reliable supplier"
+        }, timeout=10)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["name"] == "Fresh Farms"
+        assert data["phone"] == "9876543210"
+        assert "id" in data
+        state["supplier_id"] = data["id"]
+
+    def test_list_suppliers(self, admin_headers, state):
+        r = requests.get(f"{API}/suppliers", headers=admin_headers, timeout=10)
+        assert r.status_code == 200
+        suppliers = r.json()
+        assert isinstance(suppliers, list)
+        ids = [s["id"] for s in suppliers]
+        assert state["supplier_id"] in ids
+
+    def test_update_supplier(self, admin_headers, state):
+        sid = state["supplier_id"]
+        r = requests.put(f"{API}/suppliers/{sid}", headers=admin_headers, json={
+            "name": "Fresh Farms Updated",
+            "phone": "9876543211"
+        }, timeout=10)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["name"] == "Fresh Farms Updated"
+        assert data["phone"] == "9876543211"
+
+    def test_supplier_requires_admin(self, state):
+        # Restaurant user cannot access suppliers
+        h = {"Authorization": f"Bearer {state['rest_token']}"}
+        r = requests.get(f"{API}/suppliers", headers=h, timeout=10)
+        assert r.status_code == 403
+
+
+# ----------------------------- Purchase Bills CRUD -----------------------------
+class TestPurchaseBills:
+    def test_create_purchase_bill(self, admin_headers, state):
+        from datetime import date
+        today = date.today().isoformat()
+        r = requests.post(f"{API}/purchase-bills", headers=admin_headers, json={
+            "supplier_id": state["supplier_id"],
+            "bill_no": "FB-001",
+            "bill_date": today,
+            "items": [
+                {"name": "Tomato", "qty": 10, "unit": "kg", "rate": 30},
+                {"name": "Onion", "qty": 15, "unit": "kg", "rate": 35}
+            ],
+            "notes": "Morning delivery"
+        }, timeout=10)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["bill_no"] == "FB-001"
+        assert len(data["items"]) == 2
+        # Check total calculation: (10*30) + (15*35) = 300 + 525 = 825
+        assert data["total"] == 825.0
+        assert data["paid"] is False
+        assert "id" in data
+        state["bill_id"] = data["id"]
+        state["bill_total"] = data["total"]
+
+    def test_list_purchase_bills(self, admin_headers, state):
+        r = requests.get(f"{API}/purchase-bills", headers=admin_headers, timeout=10)
+        assert r.status_code == 200
+        bills = r.json()
+        assert isinstance(bills, list)
+        ids = [b["id"] for b in bills]
+        assert state["bill_id"] in ids
+
+    def test_list_bills_by_supplier(self, admin_headers, state):
+        r = requests.get(f"{API}/purchase-bills", 
+                        headers=admin_headers, 
+                        params={"supplier_id": state["supplier_id"]},
+                        timeout=10)
+        assert r.status_code == 200
+        bills = r.json()
+        for bill in bills:
+            assert bill["supplier_id"] == state["supplier_id"]
+
+    def test_update_bill_mark_paid(self, admin_headers, state):
+        bid = state["bill_id"]
+        r = requests.put(f"{API}/purchase-bills/{bid}", headers=admin_headers, json={
+            "paid": True
+        }, timeout=10)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["paid"] is True
+
+    def test_update_bill_items(self, admin_headers, state):
+        # Create another bill to test item updates
+        from datetime import date
+        today = date.today().isoformat()
+        r = requests.post(f"{API}/purchase-bills", headers=admin_headers, json={
+            "supplier_id": state["supplier_id"],
+            "bill_no": "FB-002",
+            "bill_date": today,
+            "items": [{"name": "Potato", "qty": 20, "unit": "kg", "rate": 25}]
+        }, timeout=10)
+        assert r.status_code == 200
+        bid2 = r.json()["id"]
+        
+        # Update items
+        r = requests.put(f"{API}/purchase-bills/{bid2}", headers=admin_headers, json={
+            "items": [
+                {"name": "Potato", "qty": 25, "unit": "kg", "rate": 25},
+                {"name": "Carrot", "qty": 10, "unit": "kg", "rate": 40}
+            ]
+        }, timeout=10)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["items"]) == 2
+        # (25*25) + (10*40) = 625 + 400 = 1025
+        assert data["total"] == 1025.0
+        state["bill_id_2"] = bid2
+
+
+# ----------------------------- Supplier Payments -----------------------------
+class TestSupplierPayments:
+    def test_create_supplier_payment(self, admin_headers, state):
+        r = requests.post(f"{API}/supplier-payments", headers=admin_headers, json={
+            "supplier_id": state["supplier_id"],
+            "bill_id": state["bill_id"],
+            "amount": 500,
+            "note": "Cash payment"
+        }, timeout=10)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["amount"] == 500.0
+        assert data["supplier_id"] == state["supplier_id"]
+        assert data["bill_id"] == state["bill_id"]
+        assert "id" in data
+        state["payment_id"] = data["id"]
+
+    def test_list_supplier_payments(self, admin_headers, state):
+        r = requests.get(f"{API}/supplier-payments", headers=admin_headers, timeout=10)
+        assert r.status_code == 200
+        payments = r.json()
+        assert isinstance(payments, list)
+        ids = [p["id"] for p in payments]
+        assert state["payment_id"] in ids
+
+    def test_list_payments_by_supplier(self, admin_headers, state):
+        r = requests.get(f"{API}/supplier-payments",
+                        headers=admin_headers,
+                        params={"supplier_id": state["supplier_id"]},
+                        timeout=10)
+        assert r.status_code == 200
+        payments = r.json()
+        for payment in payments:
+            assert payment["supplier_id"] == state["supplier_id"]
+
+    def test_payment_requires_valid_supplier(self, admin_headers):
+        r = requests.post(f"{API}/supplier-payments", headers=admin_headers, json={
+            "supplier_id": "invalid-id",
+            "amount": 100,
+            "note": "Test"
+        }, timeout=10)
+        assert r.status_code == 404
+
+    def test_payment_requires_positive_amount(self, admin_headers, state):
+        r = requests.post(f"{API}/supplier-payments", headers=admin_headers, json={
+            "supplier_id": state["supplier_id"],
+            "amount": -100,
+            "note": "Test"
+        }, timeout=10)
+        assert r.status_code == 400
+
+
+# ----------------------------- Expenses CRUD -----------------------------
+class TestExpenses:
+    def test_create_expense(self, admin_headers, state):
+        r = requests.post(f"{API}/expenses", headers=admin_headers, json={
+            "category": "Transport",
+            "amount": 250,
+            "expense_date": "2025-07-01",
+            "bill_ref": "TRP-001",
+            "notes": "Fuel for delivery"
+        }, timeout=10)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["category"] == "Transport"
+        assert data["amount"] == 250.0
+        assert data["expense_date"] == "2025-07-01"
+        assert "id" in data
+        state["expense_id"] = data["id"]
+
+    def test_list_expenses(self, admin_headers, state):
+        r = requests.get(f"{API}/expenses", headers=admin_headers, timeout=10)
+        assert r.status_code == 200
+        expenses = r.json()
+        assert isinstance(expenses, list)
+        ids = [e["id"] for e in expenses]
+        assert state["expense_id"] in ids
+
+    def test_list_expenses_by_month(self, admin_headers, state):
+        # Create another expense for current month
+        from datetime import date
+        today = date.today()
+        month_str = today.strftime("%Y-%m")
+        
+        r = requests.post(f"{API}/expenses", headers=admin_headers, json={
+            "category": "Utilities",
+            "amount": 150,
+            "expense_date": today.isoformat(),
+            "bill_ref": "UTIL-001",
+            "notes": "Electricity"
+        }, timeout=10)
+        assert r.status_code == 200
+        exp_id = r.json()["id"]
+        state["expense_id_2"] = exp_id
+        
+        # Filter by month
+        r = requests.get(f"{API}/expenses",
+                        headers=admin_headers,
+                        params={"month": month_str},
+                        timeout=10)
+        assert r.status_code == 200
+        expenses = r.json()
+        # All expenses should be from this month
+        for exp in expenses:
+            assert exp["expense_date"].startswith(month_str)
+
+    def test_update_expense(self, admin_headers, state):
+        eid = state["expense_id"]
+        r = requests.put(f"{API}/expenses/{eid}", headers=admin_headers, json={
+            "amount": 300,
+            "notes": "Updated fuel cost"
+        }, timeout=10)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["amount"] == 300.0
+        assert data["notes"] == "Updated fuel cost"
+
+    def test_expense_requires_positive_amount(self, admin_headers):
+        r = requests.post(f"{API}/expenses", headers=admin_headers, json={
+            "category": "Test",
+            "amount": -50,
+            "expense_date": "2025-07-01"
+        }, timeout=10)
+        assert r.status_code == 400
+
+    def test_delete_expense(self, admin_headers, state):
+        eid = state.get("expense_id_2")
+        if eid:
+            r = requests.delete(f"{API}/expenses/{eid}", headers=admin_headers, timeout=10)
+            assert r.status_code == 200
+
+
+# ----------------------------- Reports -----------------------------
+class TestReports:
+    def test_monthly_report(self, admin_headers):
+        from datetime import date
+        today = date.today()
+        r = requests.get(f"{API}/reports/monthly",
+                        headers=admin_headers,
+                        params={"year": today.year, "month": today.month},
+                        timeout=15)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        # Check all required fields
+        required_fields = [
+            "month", "revenue", "order_count", "payments_received",
+            "pending_receivables", "supplier_cost", "supplier_paid",
+            "supplier_outstanding", "expenses", "expense_breakdown", "gross_profit"
+        ]
+        for field in required_fields:
+            assert field in data, f"Missing field: {field}"
+        
+        # Check data types
+        assert isinstance(data["revenue"], (int, float))
+        assert isinstance(data["order_count"], int)
+        assert isinstance(data["expense_breakdown"], dict)
+        
+        # Gross profit calculation check
+        expected_profit = data["revenue"] - data["supplier_cost"] - data["expenses"]
+        assert abs(data["gross_profit"] - expected_profit) < 0.01
+
+    def test_yearly_report(self, admin_headers):
+        from datetime import date
+        today = date.today()
+        r = requests.get(f"{API}/reports/yearly",
+                        headers=admin_headers,
+                        params={"year": today.year},
+                        timeout=20)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "year" in data
+        assert "months" in data
+        assert len(data["months"]) == 12
+        
+        # Check each month has required fields
+        for month_data in data["months"]:
+            assert "month" in month_data
+            assert "revenue" in month_data
+            assert "payments_received" in month_data
+            assert "expenses" in month_data
+            assert "supplier_cost" in month_data
+            assert "gross_profit" in month_data
+            
+            # Verify gross profit calculation
+            expected = month_data["revenue"] - month_data["supplier_cost"] - month_data["expenses"]
+            assert abs(month_data["gross_profit"] - expected) < 0.01
+
+    def test_reports_require_admin(self, state):
+        from datetime import date
+        today = date.today()
+        h = {"Authorization": f"Bearer {state['rest_token']}"}
+        
+        r = requests.get(f"{API}/reports/monthly",
+                        headers=h,
+                        params={"year": today.year, "month": today.month},
+                        timeout=10)
+        assert r.status_code == 403
+        
+        r = requests.get(f"{API}/reports/yearly",
+                        headers=h,
+                        params={"year": today.year},
+                        timeout=10)
+        assert r.status_code == 403
+
+
+# ----------------------------- Cascade Delete Test -----------------------------
+class TestCascadeDelete:
+    def test_supplier_delete_cascades(self, admin_headers, state):
+        # Create a new supplier with bills and payments
+        r = requests.post(f"{API}/suppliers", headers=admin_headers, json={
+            "name": "Test Cascade Supplier",
+            "phone": "1111111111"
+        }, timeout=10)
+        assert r.status_code == 200
+        cascade_supplier_id = r.json()["id"]
+        
+        # Create a bill for this supplier
+        from datetime import date
+        r = requests.post(f"{API}/purchase-bills", headers=admin_headers, json={
+            "supplier_id": cascade_supplier_id,
+            "bill_no": "CASCADE-001",
+            "bill_date": date.today().isoformat(),
+            "items": [{"name": "Test", "qty": 1, "unit": "kg", "rate": 10}]
+        }, timeout=10)
+        assert r.status_code == 200
+        cascade_bill_id = r.json()["id"]
+        
+        # Create a payment for this bill
+        r = requests.post(f"{API}/supplier-payments", headers=admin_headers, json={
+            "supplier_id": cascade_supplier_id,
+            "bill_id": cascade_bill_id,
+            "amount": 5
+        }, timeout=10)
+        assert r.status_code == 200
+        cascade_payment_id = r.json()["id"]
+        
+        # Delete the supplier
+        r = requests.delete(f"{API}/suppliers/{cascade_supplier_id}", 
+                           headers=admin_headers, timeout=10)
+        assert r.status_code == 200
+        
+        # Verify bill is deleted
+        r = requests.get(f"{API}/purchase-bills", headers=admin_headers, timeout=10)
+        assert r.status_code == 200
+        bill_ids = [b["id"] for b in r.json()]
+        assert cascade_bill_id not in bill_ids
+        
+        # Verify payment is deleted
+        r = requests.get(f"{API}/supplier-payments", headers=admin_headers, timeout=10)
+        assert r.status_code == 200
+        payment_ids = [p["id"] for p in r.json()]
+        assert cascade_payment_id not in payment_ids
+
+
 # ----------------------------- Cleanup -----------------------------
 @pytest.fixture(scope="session", autouse=True)
 def _cleanup(state):
@@ -320,9 +697,17 @@ def _cleanup(state):
         if r.status_code != 200:
             return
         h = {"Authorization": f"Bearer {r.json()['token']}"}
+        
+        # Clean up restaurants
         for key in ("rest_id", "self_reg_id"):
             rid = state.get(key)
             if rid:
                 requests.delete(f"{API}/restaurants/{rid}", headers=h, timeout=10)
+        
+        # Clean up test data
+        if state.get("supplier_id"):
+            requests.delete(f"{API}/suppliers/{state['supplier_id']}", headers=h, timeout=10)
+        if state.get("expense_id"):
+            requests.delete(f"{API}/expenses/{state['expense_id']}", headers=h, timeout=10)
     except Exception:
         pass

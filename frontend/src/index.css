@@ -80,3 +80,86 @@ h1, h2, h3, h4, h5, .font-heading {
     to { opacity: 1; transform: translateY(0); }
 }
 .animate-fadeup { animation: fadeup 0.4s ease both; }
+
+/* ================================================================
+   PRINT STYLES — page-fit table layout for all printed pages
+   ================================================================ */
+@media print {
+  /* Hide sidebar, mobile nav, action buttons */
+  aside,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Remove sidebar offset so content fills full width */
+  main {
+    margin-left: 0 !important;
+    padding-top: 0 !important;
+    min-height: auto !important;
+  }
+
+  /* Remove outer padding so table uses full page width */
+  .p-4, .p-5, .p-6, .sm\:p-5, .sm\:p-6, .lg\:p-10 {
+    padding: 6pt !important;
+  }
+
+  /* Page margins & size */
+  @page {
+    size: A4;
+    margin: 12mm 10mm;
+  }
+
+  body {
+    background: white !important;
+    font-size: 10pt;
+    color: #111;
+  }
+
+  /* Force color printing for status badges */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Card: no shadow, thin border */
+  .rounded-2xl,
+  .rounded-xl {
+    border-radius: 4pt !important;
+    box-shadow: none !important;
+  }
+
+  /* Compact grid rows */
+  .py-3\.5, .py-4, .py-3 {
+    padding-top: 4pt !important;
+    padding-bottom: 4pt !important;
+  }
+
+  /* Avoid page breaks inside rows */
+  .divide-y > * {
+    page-break-inside: avoid;
+  }
+
+  /* Show print-only elements */
+  .print\:block {
+    display: block !important;
+  }
+
+  /* Charts: hide on print (replaced by table) */
+  .recharts-wrapper {
+    display: none !important;
+  }
+
+  /* Headings */
+  h1 { font-size: 16pt; margin: 0 0 4pt; }
+  h2 { font-size: 13pt; }
+  h3 { font-size: 11pt; }
+
+  /* Grid columns stay as defined */
+  .grid { display: grid; }
+
+  /* Full width within page */
+  .max-w-7xl {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+}

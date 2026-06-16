@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollText, Minus, Plus, Check, Truck, Search, Trash2 } from "lucide-react";
+import { ScrollText, Minus, Plus, Check, Truck, Search, Trash2, Printer } from "lucide-react";
 
 const FILTERS = ["all", "pending", "confirmed", "delivered"];
 
@@ -87,9 +87,30 @@ export default function AdminOrders() {
 
   return (
     <div>
-      <PageHeader title="Orders" subtitle="Confirm quantities & rates, then mark delivered." />
+      {/* Print-only header */}
+      <div className="hidden print:block mb-4">
+        <h1 className="text-2xl font-bold">Jivdani Vegetable Suppliers</h1>
+        <p className="text-sm text-gray-500">
+          Orders List &mdash; printed {new Date().toLocaleDateString("en-IN")}
+          {filter !== "all" ? ` · Status: ${filter}` : ""}
+        </p>
+        <hr className="mt-2 border-gray-400" />
+      </div>
 
-      <div className="flex gap-2 mb-5 flex-wrap">
+      <PageHeader
+        title="Orders"
+        subtitle="Confirm quantities & rates, then mark delivered."
+        action={
+          <button
+            onClick={() => window.print()}
+            className="no-print flex items-center gap-2 rounded-xl border border-primary text-primary px-4 py-3 font-semibold hover:bg-primary/10 transition-all"
+          >
+            <Printer className="h-4 w-4" /> Print
+          </button>
+        }
+      />
+
+      <div className="no-print flex gap-2 mb-5 flex-wrap">
         {FILTERS.map((f) => (
           <button
             key={f}
@@ -104,7 +125,7 @@ export default function AdminOrders() {
         ))}
       </div>
 
-      <div className="relative mb-5 max-w-md">
+      <div className="no-print relative mb-5 max-w-md">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           data-testid="order-search-input"
@@ -142,7 +163,7 @@ export default function AdminOrders() {
                     <button
                       data-testid={`confirm-order-${o.id}`}
                       onClick={() => openConfirm(o)}
-                      className="rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:bg-[#143a2e] transition-all"
+                      className="no-print rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:bg-[#143a2e] transition-all"
                     >
                       Review & Confirm
                     </button>
@@ -151,7 +172,7 @@ export default function AdminOrders() {
                     <button
                       data-testid={`deliver-order-${o.id}`}
                       onClick={() => markStatus(o, "delivered")}
-                      className="rounded-xl border border-primary text-primary px-4 py-2.5 text-sm font-semibold hover:bg-primary/10 transition-all"
+                      className="no-print rounded-xl border border-primary text-primary px-4 py-2.5 text-sm font-semibold hover:bg-primary/10 transition-all"
                     >
                       Mark Delivered
                     </button>
@@ -160,7 +181,7 @@ export default function AdminOrders() {
                     data-testid={`delete-order-${o.id}`}
                     onClick={() => delOrder(o)}
                     title="Delete order"
-                    className="p-2.5 rounded-xl text-destructive hover:bg-destructive/10 transition-all"
+                    className="no-print p-2.5 rounded-xl text-destructive hover:bg-destructive/10 transition-all"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

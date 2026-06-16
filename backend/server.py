@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import uuid
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict, BeforeValidator
@@ -226,6 +227,70 @@ class PaymentInput(BaseModel):
 class SettingsUpdate(BaseModel):
     cutoff_enabled: Optional[bool] = None
     cutoff_time: Optional[str] = None
+
+
+# ----------------------------- Supplier / Purchase Models -----------------------------
+class SupplierInput(BaseModel):
+    name: str
+    phone: Optional[str] = ""
+    address: Optional[str] = ""
+    notes: Optional[str] = ""
+
+
+class SupplierUpdateInput(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class PurchaseBillItem(BaseModel):
+    name: str
+    qty: float
+    unit: str = "kg"
+    rate: float
+
+
+class PurchaseBillInput(BaseModel):
+    supplier_id: str
+    bill_no: Optional[str] = ""
+    bill_date: str
+    items: List[PurchaseBillItem]
+    notes: Optional[str] = ""
+
+
+class PurchaseBillUpdateInput(BaseModel):
+    supplier_id: Optional[str] = None
+    bill_no: Optional[str] = None
+    bill_date: Optional[str] = None
+    items: Optional[List[PurchaseBillItem]] = None
+    notes: Optional[str] = None
+    paid: Optional[bool] = None
+
+
+class SupplierPaymentInput(BaseModel):
+    supplier_id: str
+    bill_id: Optional[str] = ""
+    amount: float
+    note: Optional[str] = ""
+    payment_date: Optional[str] = None
+
+
+# ----------------------------- Expense Models -----------------------------
+class ExpenseInput(BaseModel):
+    category: str
+    amount: float
+    expense_date: str
+    bill_ref: Optional[str] = ""
+    notes: Optional[str] = ""
+
+
+class ExpenseUpdateInput(BaseModel):
+    category: Optional[str] = None
+    amount: Optional[float] = None
+    expense_date: Optional[str] = None
+    bill_ref: Optional[str] = None
+    notes: Optional[str] = None
 
 
 # ----------------------------- Auth Routes -----------------------------
@@ -693,6 +758,264 @@ async def update_settings(data: SettingsUpdate, user: dict = Depends(require_adm
 async def root():
     return {"message": "Jivdani Vegetable Suppliers API"}
 
+
+# ----------------------------- Supplier Routes -----------------------------
+@api_router.get("/suppliers")
+async def list_suppliers(user: dict = Depends(require_admin)):
+    suppliers = await db.suppliers.find({}).sort("name", 1).to_list(1000)
+    return [serialize(s) for s in suppliers]
+
+
+@api_router.post("/suppliers")
+async def create_supplier(data: SupplierInput, user: dict = Depends(require_admin)):
+    doc = {"_id": str(uuid.uuid4()), **data.model_dump(), "created_at": now_utc().isoformat()}
+    await db.suppliers.insert_one(doc)
+    return serialize(doc)
+
+
+@api_router.put("/suppliers/{sid}")
+async def update_supplier(sid: str, data: SupplierUpdateInput, user: dict = Depends(require_admin)):
+    update = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not update:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    await db.suppliers.update_one({"_id": sid}, {"$set": update})
+    doc = await db.suppliers.find_one({"_id": sid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return serialize(doc)
+
+
+@api_router.delete("/suppliers/{sid}")
+async def delete_supplier(sid: str, user: dict = Depends(require_admin)):
+    bills = await db.purchase_bills.find({"supplier_id": sid}, {"_id": 1}).to_list(1000)
+    bill_ids = [b["_id"] for b in bills]
+    await db.purchase_bills.delete_many({"supplier_id": sid})
+    if bill_ids:
+        await db.supplier_payments.delete_many({"bill_id": {"$in": bill_ids}})
+    await db.supplier_payments.delete_many({"supplier_id": sid})
+    await db.suppliers.delete_one({"_id": sid})
+    return {"message": "Deleted"}
+
+
+# ----------------------------- Purchase Bill Routes -----------------------------
+@api_router.get("/purchase-bills")
+async def list_purchase_bills(supplier_id: Optional[str] = None, user: dict = Depends(require_admin)):
+    query = {}
+    if supplier_id:
+        query["supplier_id"] = supplier_id
+    bills = await db.purchase_bills.find(query).sort("bill_date", -1).to_list(2000)
+    return [serialize(b) for b in bills]
+
+
+@api_router.post("/purchase-bills")
+async def create_purchase_bill(data: PurchaseBillInput, user: dict = Depends(require_admin)):
+    supplier = await db.suppliers.find_one({"_id": data.supplier_id})
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    items = []
+    total = 0.0
+    for it in data.items:
+        amount = round(it.rate * it.qty, 2)
+        total += amount
+        items.append({"name": it.name, "qty": it.qty, "unit": it.unit, "rate": it.rate, "amount": amount})
+    doc = {
+        "_id": str(uuid.uuid4()),
+        "supplier_id": data.supplier_id,
+        "supplier_name": supplier["name"],
+        "bill_no": data.bill_no or "",
+        "bill_date": data.bill_date,
+        "items": items,
+        "total": round(total, 2),
+        "paid": False,
+        "notes": data.notes or "",
+        "created_at": now_utc().isoformat(),
+    }
+    await db.purchase_bills.insert_one(doc)
+    return serialize(doc)
+
+
+@api_router.put("/purchase-bills/{bid}")
+async def update_purchase_bill(bid: str, data: PurchaseBillUpdateInput, user: dict = Depends(require_admin)):
+    update: dict = {}
+    if data.bill_no is not None:
+        update["bill_no"] = data.bill_no
+    if data.bill_date is not None:
+        update["bill_date"] = data.bill_date
+    if data.notes is not None:
+        update["notes"] = data.notes
+    if data.paid is not None:
+        update["paid"] = data.paid
+    if data.items is not None:
+        items = []
+        total = 0.0
+        for it in data.items:
+            amount = round(it.rate * it.qty, 2)
+            total += amount
+            items.append({"name": it.name, "qty": it.qty, "unit": it.unit, "rate": it.rate, "amount": amount})
+        update["items"] = items
+        update["total"] = round(total, 2)
+    if update:
+        await db.purchase_bills.update_one({"_id": bid}, {"$set": update})
+    doc = await db.purchase_bills.find_one({"_id": bid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    return serialize(doc)
+
+
+@api_router.delete("/purchase-bills/{bid}")
+async def delete_purchase_bill(bid: str, user: dict = Depends(require_admin)):
+    await db.purchase_bills.delete_one({"_id": bid})
+    await db.supplier_payments.delete_many({"bill_id": bid})
+    return {"message": "Deleted"}
+
+
+# ----------------------------- Supplier Payments -----------------------------
+@api_router.get("/supplier-payments")
+async def list_supplier_payments(supplier_id: Optional[str] = None, user: dict = Depends(require_admin)):
+    query = {}
+    if supplier_id:
+        query["supplier_id"] = supplier_id
+    payments = await db.supplier_payments.find(query).sort("payment_date", -1).to_list(2000)
+    return [serialize(p) for p in payments]
+
+
+@api_router.post("/supplier-payments")
+async def add_supplier_payment(data: SupplierPaymentInput, user: dict = Depends(require_admin)):
+    supplier = await db.suppliers.find_one({"_id": data.supplier_id})
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+    doc = {
+        "_id": str(uuid.uuid4()),
+        "supplier_id": data.supplier_id,
+        "supplier_name": supplier["name"],
+        "bill_id": data.bill_id or "",
+        "amount": round(data.amount, 2),
+        "note": data.note or "",
+        "payment_date": data.payment_date or today_str(),
+        "created_at": now_utc().isoformat(),
+    }
+    await db.supplier_payments.insert_one(doc)
+    return serialize(doc)
+
+
+@api_router.delete("/supplier-payments/{pid}")
+async def delete_supplier_payment(pid: str, user: dict = Depends(require_admin)):
+    await db.supplier_payments.delete_one({"_id": pid})
+    return {"message": "Deleted"}
+
+
+# ----------------------------- Expense Routes -----------------------------
+@api_router.get("/expenses")
+async def list_expenses(month: Optional[str] = None, user: dict = Depends(require_admin)):
+    query: dict = {}
+    if month:
+        query["expense_date"] = {"$regex": f"^{month}"}
+    expenses = await db.expenses.find(query).sort("expense_date", -1).to_list(2000)
+    return [serialize(e) for e in expenses]
+
+
+@api_router.post("/expenses")
+async def create_expense(data: ExpenseInput, user: dict = Depends(require_admin)):
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+    doc = {"_id": str(uuid.uuid4()), **data.model_dump(), "created_at": now_utc().isoformat()}
+    await db.expenses.insert_one(doc)
+    return serialize(doc)
+
+
+@api_router.put("/expenses/{eid}")
+async def update_expense(eid: str, data: ExpenseUpdateInput, user: dict = Depends(require_admin)):
+    update = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not update:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    await db.expenses.update_one({"_id": eid}, {"$set": update})
+    doc = await db.expenses.find_one({"_id": eid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    return serialize(doc)
+
+
+@api_router.delete("/expenses/{eid}")
+async def delete_expense(eid: str, user: dict = Depends(require_admin)):
+    await db.expenses.delete_one({"_id": eid})
+    return {"message": "Deleted"}
+
+
+# ----------------------------- Reports -----------------------------
+@api_router.get("/reports/monthly")
+async def monthly_report(year: int, month: int, user: dict = Depends(require_admin)):
+    month_str = f"{year:04d}-{month:02d}"
+
+    orders = await db.orders.find({
+        "order_date": {"$regex": f"^{month_str}"},
+        "status": {"$in": ["confirmed", "delivered"]},
+    }).to_list(5000)
+    revenue = round(sum(float(o.get("total", 0)) for o in orders), 2)
+
+    payments = await db.payments.find({"created_at": {"$regex": f"^{month_str}"}}).to_list(5000)
+    payments_received = round(sum(float(p.get("amount", 0)) for p in payments), 2)
+
+    bills = await db.purchase_bills.find({"bill_date": {"$regex": f"^{month_str}"}}).to_list(5000)
+    supplier_cost = round(sum(float(b.get("total", 0)) for b in bills), 2)
+
+    sup_payments = await db.supplier_payments.find({"payment_date": {"$regex": f"^{month_str}"}}).to_list(5000)
+    supplier_paid = round(sum(float(p.get("amount", 0)) for p in sup_payments), 2)
+
+    expenses = await db.expenses.find({"expense_date": {"$regex": f"^{month_str}"}}).to_list(5000)
+    total_expenses = round(sum(float(e.get("amount", 0)) for e in expenses), 2)
+
+    exp_by_cat: dict = {}
+    for e in expenses:
+        cat = e.get("category", "Misc")
+        exp_by_cat[cat] = round(exp_by_cat.get(cat, 0) + float(e.get("amount", 0)), 2)
+
+    all_billed_orders = await db.orders.find({"status": {"$in": ["confirmed", "delivered"]}}).to_list(10000)
+    all_billed = round(sum(float(o.get("total", 0)) for o in all_billed_orders), 2)
+    all_recv = await db.payments.find({}).to_list(10000)
+    all_paid = round(sum(float(p.get("amount", 0)) for p in all_recv), 2)
+
+    return {
+        "month": month_str,
+        "revenue": revenue,
+        "order_count": len(orders),
+        "payments_received": payments_received,
+        "pending_receivables": round(all_billed - all_paid, 2),
+        "supplier_cost": supplier_cost,
+        "supplier_paid": supplier_paid,
+        "supplier_outstanding": round(supplier_cost - supplier_paid, 2),
+        "expenses": total_expenses,
+        "expense_breakdown": exp_by_cat,
+        "gross_profit": round(revenue - supplier_cost - total_expenses, 2),
+    }
+
+
+@api_router.get("/reports/yearly")
+async def yearly_report(year: int, user: dict = Depends(require_admin)):
+    months = []
+    for m in range(1, 13):
+        month_str = f"{year:04d}-{m:02d}"
+        orders = await db.orders.find({
+            "order_date": {"$regex": f"^{month_str}"},
+            "status": {"$in": ["confirmed", "delivered"]},
+        }).to_list(2000)
+        revenue = round(sum(float(o.get("total", 0)) for o in orders), 2)
+        payments = await db.payments.find({"created_at": {"$regex": f"^{month_str}"}}).to_list(2000)
+        payments_received = round(sum(float(p.get("amount", 0)) for p in payments), 2)
+        expenses = await db.expenses.find({"expense_date": {"$regex": f"^{month_str}"}}).to_list(2000)
+        total_expenses = round(sum(float(e.get("amount", 0)) for e in expenses), 2)
+        bills = await db.purchase_bills.find({"bill_date": {"$regex": f"^{month_str}"}}).to_list(2000)
+        supplier_cost = round(sum(float(b.get("total", 0)) for b in bills), 2)
+        months.append({
+            "month": f"{m:02d}",
+            "revenue": revenue,
+            "payments_received": payments_received,
+            "expenses": total_expenses,
+            "supplier_cost": supplier_cost,
+            "gross_profit": round(revenue - supplier_cost - total_expenses, 2),
+        })
+    return {"year": year, "months": months}
 
 # ----------------------------- Startup seeding -----------------------------
 DEFAULT_VEGETABLES = [

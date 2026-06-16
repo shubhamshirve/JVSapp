@@ -15,6 +15,9 @@ import {
   Menu,
   X,
   Leaf,
+  ShoppingBag,
+  Receipt,
+  BarChart2,
 } from "lucide-react";
 
 const adminNav = [
@@ -25,6 +28,9 @@ const adminNav = [
   { to: "/admin/vegetables", label: "Vegetables", icon: Carrot },
   { to: "/admin/restaurants", label: "Restaurants", icon: Store },
   { to: "/admin/ledgers", label: "Ledgers", icon: ReceiptText },
+  { to: "/admin/purchases", label: "Purchases", icon: ShoppingBag },
+  { to: "/admin/expenses", label: "Expenses", icon: Receipt },
+  { to: "/admin/reports", label: "Reports", icon: BarChart2 },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

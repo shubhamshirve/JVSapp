@@ -17,6 +17,9 @@ import AdminRestaurants from "@/pages/admin/AdminRestaurants";
 import AdminLedgers from "@/pages/admin/AdminLedgers";
 import AdminPurchaseList from "@/pages/admin/AdminPurchaseList";
 import AdminSettings from "@/pages/admin/AdminSettings";
+import AdminPurchases from "@/pages/admin/AdminPurchases";
+import AdminExpenses from "@/pages/admin/AdminExpenses";
+import AdminReports from "@/pages/admin/AdminReports";
 
 function Splash() {
   return (
@@ -168,6 +171,36 @@ function App() {
                 <Protected role="admin">
                   <Layout>
                     <AdminSettings />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/admin/purchases"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminPurchases />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/admin/expenses"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminExpenses />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/admin/reports"
+              element={
+                <Protected role="admin">
+                  <Layout>
+                    <AdminReports />
                   </Layout>
                 </Protected>
               }
