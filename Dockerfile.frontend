@@ -6,11 +6,15 @@ WORKDIR /app/frontend
 # Allow bigger heap for webpack on small VPS
 ENV NODE_OPTIONS=--max-old-space-size=2048
 
-# Install deps first (cache layer)
-COPY frontend/package.json frontend/yarn.lock ./
-RUN yarn install --frozen-lockfile --network-timeout 300000
+# Copy package files — yarn.lock is optional but preferred for reproducibility
+COPY frontend/package.json ./
+# Copy yarn.lock only if it exists (glob makes it optional)
+COPY frontend/package.json frontend/yarn.loc[k] ./
 
-# Copy source
+# Install dependencies
+RUN yarn install --network-timeout 300000
+
+# Copy full source
 COPY frontend/ .
 
 # REACT_APP_BACKEND_URL="" means use relative path → Nginx proxies /api
