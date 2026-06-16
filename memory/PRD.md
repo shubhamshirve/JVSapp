@@ -1,5 +1,28 @@
 # Jivdani Vegetable Suppliers — PRD
 
+## App Overview
+B2B vegetable supply management application. Vegetable supplier manages orders from restaurants, tracks deliveries, billing, and payments.
+
+## Completed Features
+
+### Core (Original)
+- Admin and Restaurant portals with role-based auth
+- Restaurant order placement with vegetable selection
+- Admin order confirmation (review qty/rate), delivery marking
+- Daily vegetable rate setting by admin
+- Restaurant ledger and payment tracking
+- Purchase list (consolidated daily purchase report)
+- Vegetable management, Restaurant management
+
+### Phase 2 (Completed July 2025)
+- **Purchases**: Supplier management (CRUD), purchase bills from suppliers (with items/rate/qty), supplier payment recording, paid/unpaid bill tracking
+- **Expenses**: Misc operational expenses with categories (Transport, Labor, Fuel, Packaging, Maintenance, Utilities, Misc), month filter, bill reference notes
+- **Reports**: Monthly financial summary (revenue, payments received, pending receivables, supplier cost, expenses, gross profit), yearly bar chart, month-by-month table
+- **Print improvements**: @media print CSS - hides sidebar, full-width content, A4 page margins, `no-print` class convention
+- **Print button**: Added to AdminOrders, AdminPurchases, AdminExpenses, AdminReports pages
+- **PWA**: manifest.json (dark green theme), service-worker.js (offline caching), icons (192x192 + 512x512), registered in index.js
+ — PRD
+
 ## Original Problem Statement
 B2B web app for "Jivdani Vegetable Suppliers". 50+ restaurants currently send vegetable requirements via PDF photos; admin manually tallies quantities & rates for next-morning supply. Replace this with a digital ordering platform where restaurants log in, fill an order form (kg), see a live estimated bill using daily market rates, and submit. Admin manages orders, daily rates, restaurants, and ledgers (pending bills). Tech: Caddy, MongoDB, Docker. Must be responsive.
 
