@@ -11,7 +11,6 @@ import RestaurantLedger from "@/pages/restaurant/RestaurantLedger";
 import PendingApproval from "@/pages/restaurant/PendingApproval";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminOrders from "@/pages/admin/AdminOrders";
-import AdminRates from "@/pages/admin/AdminRates";
 import AdminVegetables from "@/pages/admin/AdminVegetables";
 import AdminRestaurants from "@/pages/admin/AdminRestaurants";
 import AdminLedgers from "@/pages/admin/AdminLedgers";
@@ -111,16 +110,6 @@ function App() {
                 <Protected role="admin">
                   <Layout>
                     <AdminOrders />
-                  </Layout>
-                </Protected>
-              }
-            />
-            <Route
-              path="/admin/rates"
-              element={
-                <Protected role="admin">
-                  <Layout>
-                    <AdminRates />
                   </Layout>
                 </Protected>
               }

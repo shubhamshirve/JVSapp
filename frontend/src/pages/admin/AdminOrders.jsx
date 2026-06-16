@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, formatApiError, inr } from "@/lib/api";
+import { printInvoice } from "@/lib/printInvoice";
 import { toast } from "sonner";
 import { PageHeader, Card, StatusBadge, EmptyState } from "@/components/Shared";
 import {
@@ -8,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollText, Minus, Plus, Check, Truck, Search, Trash2, Printer } from "lucide-react";
+import { ScrollText, Minus, Plus, Check, Truck, Search, Trash2, Printer, FileText } from "lucide-react";
 
 const FILTERS = ["all", "pending", "confirmed", "delivered"];
 
@@ -184,6 +185,13 @@ export default function AdminOrders() {
                     className="no-print p-2.5 rounded-xl text-destructive hover:bg-destructive/10 transition-all"
                   >
                     <Trash2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => printInvoice(o)}
+                    title="Print Invoice"
+                    className="no-print p-2.5 rounded-xl text-primary hover:bg-primary/10 transition-all"
+                  >
+                    <FileText className="h-4 w-4" />
                   </button>
                 </div>
               </div>

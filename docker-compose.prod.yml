@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+
+  mongodb:
+    image: mongo:7
+    container_name: jvs_mongodb
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: jvs_db
+    networks:
+      - jvs_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: jvs_backend
+    restart: unless-stopped
+    environment:
+      MONGO_URL:       mongodb://mongodb:27017
+      DB_NAME:         jvs_db
+      ADMIN_EMAIL:     ${ADMIN_EMAIL:-admin@jivdani.com}
+      ADMIN_PASSWORD:  ${ADMIN_PASSWORD:-Jivdani@2026}
+      JWT_SECRET:      ${JWT_SECRET:-change-me-in-production}
+      CORS_ORIGINS:    "http://${VPS_IP:-45.196.196.114}"
+    depends_on:
+      - mongodb
+    networks:
+      - jvs_net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        REACT_APP_BACKEND_URL: ""
+    container_name: jvs_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - jvs_net
+
+volumes:
+  mongo_data:
+
+networks:
+  jvs_net:
+    driver: bridge

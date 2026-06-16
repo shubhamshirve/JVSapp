@@ -5,6 +5,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import uuid
 import logging
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict, BeforeValidator
 from typing import List, Optional, Annotated, Any
@@ -26,6 +29,11 @@ JWT_ALGORITHM = "HS256"
 
 app = FastAPI(title="Jivdani Vegetable Suppliers")
 api_router = APIRouter(prefix="/api")
+
+# ---- Rate Limiting ----
+limiter = Limiter(key_func=get_remote_address, default_limits=["300/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -295,7 +303,8 @@ class ExpenseUpdateInput(BaseModel):
 
 # ----------------------------- Auth Routes -----------------------------
 @api_router.post("/auth/register")
-async def register(data: RegisterInput):
+@limiter.limit("5/minute")
+async def register(request: Request, data: RegisterInput):
     email = data.email.lower()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -318,7 +327,8 @@ async def register(data: RegisterInput):
 
 
 @api_router.post("/auth/login")
-async def login(data: LoginInput):
+@limiter.limit("10/minute")
+async def login(request: Request, data: LoginInput):
     email = data.email.lower()
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(data.password, user["password_hash"]):
@@ -410,7 +420,8 @@ async def _build_order_items(items: List[OrderItemInput]):
 
 
 @api_router.post("/orders")
-async def create_order(data: OrderCreateInput, user: dict = Depends(require_active_restaurant)):
+@limiter.limit("30/minute")
+async def create_order(request: Request, data: OrderCreateInput, user: dict = Depends(require_active_restaurant)):
     settings = await get_settings_doc()
     locked, _ = compute_lock(settings)
     if locked:
@@ -945,7 +956,8 @@ async def delete_expense(eid: str, user: dict = Depends(require_admin)):
 
 # ----------------------------- Reports -----------------------------
 @api_router.get("/reports/monthly")
-async def monthly_report(year: int, month: int, user: dict = Depends(require_admin)):
+@limiter.limit("60/minute")
+async def monthly_report(request: Request, year: int, month: int, user: dict = Depends(require_admin)):
     month_str = f"{year:04d}-{month:02d}"
 
     orders = await db.orders.find({
@@ -992,7 +1004,8 @@ async def monthly_report(year: int, month: int, user: dict = Depends(require_adm
 
 
 @api_router.get("/reports/yearly")
-async def yearly_report(year: int, user: dict = Depends(require_admin)):
+@limiter.limit("60/minute")
+async def yearly_report(request: Request, year: int, user: dict = Depends(require_admin)):
     months = []
     for m in range(1, 13):
         month_str = f"{year:04d}-{m:02d}"

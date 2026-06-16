@@ -6,7 +6,6 @@ import {
   ShoppingBasket,
   ScrollText,
   Carrot,
-  Tags,
   Store,
   ReceiptText,
   ClipboardList,
@@ -18,20 +17,29 @@ import {
   ShoppingBag,
   Receipt,
   BarChart2,
+  FileText,
+  ChevronDown,
+  Wallet,
 } from "lucide-react";
 
 const adminNav = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/orders", label: "Orders", icon: ScrollText },
-  { to: "/admin/purchase-list", label: "Purchase List", icon: ClipboardList },
-  { to: "/admin/rates", label: "Daily Rates", icon: Tags },
-  { to: "/admin/vegetables", label: "Vegetables", icon: Carrot },
-  { to: "/admin/restaurants", label: "Restaurants", icon: Store },
-  { to: "/admin/ledgers", label: "Ledgers", icon: ReceiptText },
-  { to: "/admin/purchases", label: "Purchases", icon: ShoppingBag },
-  { to: "/admin/expenses", label: "Expenses", icon: Receipt },
-  { to: "/admin/reports", label: "Reports", icon: BarChart2 },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
+  { to: "/admin",              label: "Dashboard",    icon: LayoutDashboard },
+  { to: "/admin/orders",       label: "Orders",       icon: ScrollText },
+  { to: "/admin/purchase-list",label: "Purchase List",icon: ClipboardList },
+  { to: "/admin/vegetables",   label: "Vegetables",   icon: Carrot },
+  { to: "/admin/restaurants",  label: "Restaurants",  icon: Store },
+  { to: "/admin/ledgers",      label: "Ledgers",      icon: ReceiptText },
+  {
+    label: "Bills",
+    icon: FileText,
+    group: true,
+    children: [
+      { to: "/admin/purchases", label: "Purchases", icon: ShoppingBag },
+      { to: "/admin/expenses",  label: "Expenses",  icon: Wallet },
+    ],
+  },
+  { to: "/admin/reports",      label: "Reports",      icon: BarChart2 },
+  { to: "/admin/settings",     label: "Settings",     icon: Settings },
 ];
 
 const restNav = [
@@ -47,9 +55,61 @@ export default function Layout({ children }) {
   const [open, setOpen] = useState(false);
   const nav = user?.role === "admin" ? adminNav : restNav;
 
+  // Bills submenu: auto-expand when on a bills sub-page
+  const isBillsRoute = ["/admin/purchases", "/admin/expenses"].includes(location.pathname);
+  const [billsOpen, setBillsOpen] = useState(isBillsRoute);
+
   const NavLinks = () => (
     <nav className="flex flex-col gap-1">
       {nav.map((item) => {
+        /* ---- Group / Submenu item ---- */
+        if (item.group) {
+          const isActive = item.children.some((c) => c.to === location.pathname);
+          return (
+            <div key={item.label}>
+              <button
+                onClick={() => setBillsOpen((v) => !v)}
+                className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium w-full transition-all duration-200 ${
+                  isActive
+                    ? "bg-primary/10 text-primary font-semibold"
+                    : "text-[#3a423c] hover:bg-secondary"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <item.icon className="h-[18px] w-[18px]" />
+                  {item.label}
+                </div>
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform duration-200 ${billsOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {billsOpen && (
+                <div className="ml-5 flex flex-col gap-0.5 mt-0.5 border-l-2 border-border pl-2">
+                  {item.children.map((child) => {
+                    const childActive = location.pathname === child.to;
+                    return (
+                      <Link
+                        key={child.to}
+                        to={child.to}
+                        onClick={() => setOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                          childActive
+                            ? "bg-primary text-primary-foreground"
+                            : "text-[#3a423c] hover:bg-secondary"
+                        }`}
+                      >
+                        <child.icon className="h-[16px] w-[16px]" />
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        /* ---- Regular nav item ---- */
         const active = location.pathname === item.to;
         const Icon = item.icon;
         return (
