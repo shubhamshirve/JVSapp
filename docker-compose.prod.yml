@@ -12,6 +12,11 @@ services:
       MONGO_INITDB_DATABASE: jvs_db
     networks:
       - jvs_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build:
@@ -30,6 +35,11 @@ services:
       - mongodb
     networks:
       - jvs_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     build:
@@ -45,6 +55,11 @@ services:
       - backend
     networks:
       - jvs_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mongo_data:
