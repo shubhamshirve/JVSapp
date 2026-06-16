@@ -46,6 +46,7 @@ const restNav = [
   { to: "/order", label: "Place Order", icon: ShoppingBasket },
   { to: "/my-orders", label: "My Orders", icon: ScrollText },
   { to: "/my-ledger", label: "My Ledger", icon: ReceiptText },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default function Layout({ children }) {

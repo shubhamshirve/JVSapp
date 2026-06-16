@@ -70,6 +70,12 @@ B2B web app for "Jivdani Vegetable Suppliers". 50+ restaurants currently send ve
 - **Startup retry**: backend pings MongoDB up to 30× (2s interval) on startup so a transient DB delay doesn't crash the container.
 - **Memory reduction**: backend uvicorn workers reduced 2 → 1 to fit the 2GB VPS.
 - **docker-compose**: removed obsolete `version: '3.8'` attribute.
+- **Account settings (NEW)**: 
+  - Backend: `PUT /api/auth/me` (update name/phone/address) and `POST /api/auth/change-password` (verifies current pwd, enforces ≥6 chars, rate-limited 10/min).
+  - Admin Settings page: added "Change password" card.
+  - Restaurant Settings page: new `/settings` route with **Profile details** (name/phone/address) + **Change password**, linked from sidebar.
+  - Shared `AccountForms.jsx` component for `ProfileCard` and `ChangePasswordCard`.
+- **PWA icons refreshed**: regenerated `icon-192.png` and `icon-512.png` from the navbar Brand (green `#1B4D3E` rounded-square tile + white Leaf). Service worker cache bumped to `jivdani-v2` so installed PWAs pick up the new icon. `index.html` now also declares `<link rel="icon">`.
 
 ## Personas
 - **Admin (Jivdani owner)**: manages rates, confirms orders, tracks dues.

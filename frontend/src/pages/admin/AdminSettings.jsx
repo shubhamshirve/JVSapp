@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { PageHeader, Card } from "@/components/Shared";
+import { ChangePasswordCard } from "@/components/AccountForms";
 import { Clock, Save, Lock, Unlock } from "lucide-react";
 
 export default function AdminSettings() {
@@ -34,8 +35,8 @@ export default function AdminSettings() {
   if (!settings) return null;
 
   return (
-    <div className="max-w-2xl">
-      <PageHeader title="Settings" subtitle="Control ordering rules for your restaurants." />
+    <div className="max-w-2xl space-y-6">
+      <PageHeader title="Settings" subtitle="Control ordering rules and manage your account." />
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -90,6 +91,8 @@ export default function AdminSettings() {
           <Save className="h-4 w-4" /> Save Settings
         </button>
       </Card>
+
+      <ChangePasswordCard />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import Layout from "@/components/Layout";
 import RestaurantOrder from "@/pages/restaurant/RestaurantOrder";
 import RestaurantOrders from "@/pages/restaurant/RestaurantOrders";
 import RestaurantLedger from "@/pages/restaurant/RestaurantLedger";
+import RestaurantSettings from "@/pages/restaurant/RestaurantSettings";
 import PendingApproval from "@/pages/restaurant/PendingApproval";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminOrders from "@/pages/admin/AdminOrders";
@@ -88,6 +89,16 @@ function App() {
                 <Protected role="restaurant">
                   <Layout>
                     <RestaurantLedger />
+                  </Layout>
+                </Protected>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <Protected role="restaurant">
+                  <Layout>
+                    <RestaurantSettings />
                   </Layout>
                 </Protected>
               }

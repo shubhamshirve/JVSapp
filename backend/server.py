@@ -237,6 +237,17 @@ class SettingsUpdate(BaseModel):
     cutoff_time: Optional[str] = None
 
 
+class ProfileUpdateInput(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+
+
+class PasswordChangeInput(BaseModel):
+    current_password: str
+    new_password: str
+
+
 # ----------------------------- Supplier / Purchase Models -----------------------------
 class SupplierInput(BaseModel):
     name: str
@@ -340,6 +351,30 @@ async def login(request: Request, data: LoginInput):
 @api_router.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return serialize(user)
+
+
+@api_router.put("/auth/me")
+async def update_me(data: ProfileUpdateInput, user: dict = Depends(get_current_user)):
+    update = {k: v for k, v in data.model_dump(exclude_none=True).items()}
+    if not update:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    await db.users.update_one({"_id": user["_id"]}, {"$set": update})
+    refreshed = await db.users.find_one({"_id": user["_id"]})
+    return serialize(refreshed)
+
+
+@api_router.post("/auth/change-password")
+@limiter.limit("10/minute")
+async def change_password(request: Request, data: PasswordChangeInput, user: dict = Depends(get_current_user)):
+    if not verify_password(data.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"password_hash": hash_password(data.new_password)}},
+    )
+    return {"message": "Password updated successfully"}
 
 
 # ----------------------------- Vegetable Routes -----------------------------

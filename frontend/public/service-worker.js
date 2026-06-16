@@ -1,5 +1,5 @@
-/* Jivdani Vegetable Suppliers — Service Worker v1 */
-const CACHE_NAME = 'jivdani-v1';
+/* Jivdani Vegetable Suppliers — Service Worker v2 */
+const CACHE_NAME = 'jivdani-v2';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (evt) => {
