@@ -39,7 +39,7 @@ export default function AdminExpenses() {
   });
 
   const load = () => api.get(`/expenses?month=${month}`).then((r) => setExpenses(r.data));
-  useEffect(load, [month]);
+  useEffect(() => { load(); }, [month]);
 
   const openAdd = () => {
     setForm({
