@@ -64,6 +64,13 @@ B2B web app for "Jivdani Vegetable Suppliers". 50+ restaurants currently send ve
 - **Deployment Automation**: Added `deploy.sh` script to pull changes and redeploy automatically using `docker-compose`.
 - **E2E Status**: Successfully deployed to `45.196.196.114`, seeded admin user (`admin@jivdani.com`) and 18 default vegetables.
 
+## Implemented (Iteration 5 — 2026-02)
+- **VPS Login bug fix**: Root cause was `docker-compose.prod.yml` reverted to `mongo:7` which crashes on VPS without AVX. Restored `mongo:4.4` (matches Iteration 4 fix) so backend can resolve the `mongodb` hostname.
+- **Healthcheck on mongodb**: backend now uses `depends_on: mongodb: condition: service_healthy` to eliminate startup race.
+- **Startup retry**: backend pings MongoDB up to 30× (2s interval) on startup so a transient DB delay doesn't crash the container.
+- **Memory reduction**: backend uvicorn workers reduced 2 → 1 to fit the 2GB VPS.
+- **docker-compose**: removed obsolete `version: '3.8'` attribute.
+
 ## Personas
 - **Admin (Jivdani owner)**: manages rates, confirms orders, tracks dues.
 - **Restaurant**: places daily orders, views bills & ledger.

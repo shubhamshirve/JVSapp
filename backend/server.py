@@ -1055,6 +1055,21 @@ DEFAULT_VEGETABLES = [
 
 @app.on_event("startup")
 async def startup():
+    # Wait for MongoDB to be reachable (resilient against startup race / restart)
+    import asyncio
+    max_attempts = 30
+    for attempt in range(1, max_attempts + 1):
+        try:
+            await client.admin.command("ping")
+            logger.info(f"MongoDB reachable on attempt {attempt}")
+            break
+        except Exception as e:
+            if attempt == max_attempts:
+                logger.error(f"MongoDB unreachable after {max_attempts} attempts: {e}")
+                raise
+            logger.warning(f"MongoDB not ready (attempt {attempt}/{max_attempts}): {e}")
+            await asyncio.sleep(2)
+
     await db.users.create_index("email", unique=True)
     await db.orders.create_index("restaurant_id")
     await db.orders.create_index("status")
