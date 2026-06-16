@@ -1111,6 +1111,7 @@ async def startup():
 
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_password = os.environ["ADMIN_PASSWORD"]
+    reset_flag = os.environ.get("ADMIN_PASSWORD_RESET", "").strip().lower() in ("1", "true", "yes")
     existing = await db.users.find_one({"email": admin_email})
     if not existing:
         await db.users.insert_one({
@@ -1122,8 +1123,14 @@ async def startup():
             "created_at": now_utc().isoformat(),
         })
         logger.info("Seeded admin user")
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+    elif reset_flag:
+        await db.users.update_one(
+            {"email": admin_email},
+            {"$set": {"password_hash": hash_password(admin_password)}},
+        )
+        logger.warning("ADMIN_PASSWORD_RESET flag set — admin password reset to ADMIN_PASSWORD from env")
+    else:
+        logger.info("Admin user already exists — keeping current DB password (env ADMIN_PASSWORD ignored)")
 
     if await db.vegetables.count_documents({}) == 0:
         for v in DEFAULT_VEGETABLES:

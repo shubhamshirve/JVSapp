@@ -78,6 +78,7 @@ B2B web app for "Jivdani Vegetable Suppliers". 50+ restaurants currently send ve
 - **PWA icons refreshed**: regenerated `icon-192.png` and `icon-512.png` from the navbar Brand (green `#1B4D3E` rounded-square tile + white Leaf). Service worker cache bumped to `jivdani-v2` so installed PWAs pick up the new icon. `index.html` now also declares `<link rel="icon">`.
 - **CI/CD pipeline rewritten (GHCR-cached)**: Workflow now builds backend & frontend images on the GitHub runner with `type=gha,mode=max` BuildKit cache and pushes to GitHub Container Registry (`ghcr.io/<owner>/<repo>/{backend,frontend}:latest`). VPS just `docker compose pull && up -d`. Code-only deploys drop from ~10 min build → **~20-30 s pull**. Compose file keeps `build:` as local-build fallback.
 - **Backend deps trimmed**: removed `emergentintegrations` (unused) and ~15 unrelated heavy packages (boto3, pandas, numpy, tiktoken stack, etc.). Backend image is now drastically smaller and faster to build.
+- **Admin password persistence across deploys**: removed the startup branch that overwrote DB password with `.env` value on every boot. Now `ADMIN_PASSWORD` is only used for first-boot seeding; subsequent password changes via the Settings UI survive deploys. Added one-off `ADMIN_PASSWORD_RESET=1` escape hatch for lockout recovery (documented in `.env.prod.example`).
 
 ## Personas
 - **Admin (Jivdani owner)**: manages rates, confirms orders, tracks dues.

@@ -34,6 +34,7 @@ services:
       DB_NAME:         jvs_db
       ADMIN_EMAIL:     ${ADMIN_EMAIL:-admin@jivdani.com}
       ADMIN_PASSWORD:  ${ADMIN_PASSWORD:-Jivdani@2026}
+      ADMIN_PASSWORD_RESET: ${ADMIN_PASSWORD_RESET:-}
       JWT_SECRET:      ${JWT_SECRET:-change-me-in-production}
       CORS_ORIGINS:    "http://${VPS_IP:-45.196.196.114}"
     depends_on:
