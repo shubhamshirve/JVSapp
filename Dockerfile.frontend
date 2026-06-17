@@ -8,21 +8,31 @@ WORKDIR /app/frontend
 ENV NODE_OPTIONS=--max-old-space-size=1536
 # Skip ESLint during production build (saves ~30s)
 ENV DISABLE_ESLINT_PLUGIN=true
-# Use CI mode to avoid interactive prompts
+# Avoid interactive prompts
 ENV CI=false
 
-# Copy lockfile + manifest first (cache layer — only re-runs if deps change)
-COPY frontend/package.json frontend/yarn.lock ./
+# Copy package.json first (always exists)
+COPY frontend/package.json ./
 
-# BuildKit cache mount: yarn global cache persists between builds
-RUN --mount=type=cache,target=/root/.yarn \
-    YARN_CACHE_FOLDER=/root/.yarn \
-    yarn install --frozen-lockfile --network-timeout 600000 --prefer-offline
+# Install dependencies
+# - BuildKit bind mount gives access to yarn.lock from build context (if committed)
+# - BuildKit cache mount keeps yarn download cache between builds
+# - Falls back to --no-frozen-lockfile if yarn.lock is missing from git
+RUN --mount=type=bind,source=frontend,target=/build-ctx \
+    --mount=type=cache,target=/root/.yarn \
+    if [ -f /build-ctx/yarn.lock ]; then \
+        cp /build-ctx/yarn.lock . && \
+        echo "yarn.lock found - reproducible install" && \
+        YARN_CACHE_FOLDER=/root/.yarn yarn install --frozen-lockfile --network-timeout 600000 --prefer-offline; \
+    else \
+        echo "WARNING: yarn.lock not in repo - run 'git add frontend/yarn.lock && git commit' for reproducible builds" && \
+        YARN_CACHE_FOLDER=/root/.yarn yarn install --no-frozen-lockfile --network-timeout 600000 --prefer-offline; \
+    fi
 
 # Copy full source
 COPY frontend/ .
 
-# REACT_APP_BACKEND_URL="" → relative /api path → Caddy proxies to backend
+# REACT_APP_BACKEND_URL="" -> relative /api paths -> Caddy proxies to backend
 ARG REACT_APP_BACKEND_URL=""
 ENV REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL}
 

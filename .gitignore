@@ -15,6 +15,7 @@ node_modules/
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+# yarn.lock MUST be committed - it is NOT ignored (only the .yarn/ cache dir above is ignored)
 
 # Testing
 /coverage
