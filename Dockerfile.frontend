@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ---- Stage 1: Build React app ----
 FROM node:20-alpine AS builder
 
@@ -5,18 +6,18 @@ WORKDIR /app/frontend
 
 # Allow bigger heap for webpack on small VPS
 ENV NODE_OPTIONS=--max-old-space-size=1536
+# Skip ESLint during production build (saves ~30s)
+ENV DISABLE_ESLINT_PLUGIN=true
+# Use CI mode to avoid interactive prompts
+ENV CI=false
 
-# Install pnpm globally
-RUN npm install -g pnpm
+# Copy lockfile + manifest first (cache layer — only re-runs if deps change)
+COPY frontend/package.json frontend/yarn.lock ./
 
-# Disable corepack strict mode so pnpm works even though package.json declares yarn
-ENV COREPACK_ENABLE_STRICT=0
-
-# Copy package.json first (cache layer — only re-runs if deps change)
-COPY frontend/package.json ./
-
-# Install dependencies
-RUN pnpm install --no-frozen-lockfile
+# BuildKit cache mount: yarn global cache persists between builds
+RUN --mount=type=cache,target=/root/.yarn \
+    YARN_CACHE_FOLDER=/root/.yarn \
+    yarn install --frozen-lockfile --network-timeout 600000 --prefer-offline
 
 # Copy full source
 COPY frontend/ .
@@ -24,10 +25,8 @@ COPY frontend/ .
 # REACT_APP_BACKEND_URL="" → relative /api path → Caddy proxies to backend
 ARG REACT_APP_BACKEND_URL=""
 ENV REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL}
-# Skip ESLint during production build (avoids version conflicts with pnpm-resolved deps)
-ENV DISABLE_ESLINT_PLUGIN=true
 
-RUN pnpm run build
+RUN yarn build
 
 # ---- Stage 2: Serve with Caddy ----
 FROM caddy:2-alpine
@@ -37,4 +36,3 @@ COPY Caddyfile /etc/caddy/Caddyfile
 
 EXPOSE 80 443
 CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
-

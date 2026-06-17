@@ -1,17 +1,15 @@
-services:
+# docker-compose.prod.yml — Pre-built image deploy (used by GitHub Actions)
+# See docker-compose.yml for local/simple builds
 
-  mongodb:
-    image: mongo:4.4
+services:
+  mongo:
+    image: mongo:7
     container_name: jvs_mongodb
     restart: unless-stopped
     volumes:
       - mongo_data:/data/db
-    environment:
-      MONGO_INITDB_DATABASE: jvs_db
-    networks:
-      - jvs_net
     healthcheck:
-      test: ["CMD", "mongo", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -21,6 +19,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - jvs_net
 
   backend:
     image: ${IMAGE_REPO:-jvsapp-local}/backend:latest
@@ -30,15 +30,15 @@ services:
     container_name: jvs_backend
     restart: unless-stopped
     environment:
-      MONGO_URL:       mongodb://mongodb:27017
-      DB_NAME:         jvs_db
-      ADMIN_EMAIL:     ${ADMIN_EMAIL:-admin@jivdani.com}
-      ADMIN_PASSWORD:  ${ADMIN_PASSWORD:-Jivdani@2026}
-      ADMIN_PASSWORD_RESET: ${ADMIN_PASSWORD_RESET:-}
-      JWT_SECRET:      ${JWT_SECRET:-change-me-in-production}
-      CORS_ORIGINS:    "http://${VPS_IP:-45.196.196.114}"
+      MONGO_URL:       mongodb://mongo:27017
+      DB_NAME:         "${DB_NAME:-jivdani}"
+      ADMIN_EMAIL:     "${ADMIN_EMAIL:-admin@jivdani.com}"
+      ADMIN_PASSWORD:  "${ADMIN_PASSWORD}"
+      ADMIN_PASSWORD_RESET: "${ADMIN_PASSWORD_RESET:-}"
+      JWT_SECRET:      "${JWT_SECRET}"
+      CORS_ORIGINS:    "${SITE_URL:-https://app.mmpf.in}"
     depends_on:
-      mongodb:
+      mongo:
         condition: service_healthy
     networks:
       - jvs_net
@@ -48,24 +48,23 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  frontend:
+  caddy:
     image: ${IMAGE_REPO:-jvsapp-local}/frontend:latest
     build:
       context: .
       dockerfile: Dockerfile.frontend
       args:
         REACT_APP_BACKEND_URL: ""
-    container_name: jvs_frontend
+    container_name: jvs_caddy
     restart: unless-stopped
     environment:
-      # ":80" for IP-only access. Change to "yourdomain.com" for auto-HTTPS.
-      SITE_ADDRESS: "${SITE_ADDRESS:-:80}"
+      SITE_ADDRESS: "${SITE_ADDRESS:-app.mmpf.in}"
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      # Caddy stores Let's Encrypt certs here (needed if using a domain)
       - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - backend
     networks:
@@ -79,6 +78,7 @@ services:
 volumes:
   mongo_data:
   caddy_data:
+  caddy_config:
 
 networks:
   jvs_net:

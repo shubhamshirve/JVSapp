@@ -1,12 +1,24 @@
+# docker-compose.yml — single-node production deploy
+# Usage: docker compose up -d --build
+# See .env.example → copy to .env and fill in secrets
+
 services:
   mongo:
-    image: mongo:4.4
+    image: mongo:7
     restart: unless-stopped
     volumes:
       - mongo_data:/data/db
-    # Uncomment to inspect the DB from the host during debugging:
-    # ports:
-    #   - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build:
@@ -21,16 +33,23 @@ services:
       ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
       CORS_ORIGINS: "${SITE_URL:-*}"
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   caddy:
     build:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        REACT_APP_BACKEND_URL: "${SITE_URL}"
+        REACT_APP_BACKEND_URL: ""
     restart: unless-stopped
     environment:
+      # Set to your domain for auto-HTTPS: SITE_ADDRESS=app.mmpf.in
       SITE_ADDRESS: "${SITE_ADDRESS:-:80}"
     ports:
       - "80:80"
@@ -40,6 +59,11 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mongo_data:
