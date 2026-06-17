@@ -17,6 +17,7 @@ import {
   CheckCircle,
   Circle,
   Printer,
+  IndianRupee,
 } from "lucide-react";
 
 const TABS = ["Suppliers", "Bills"];
@@ -41,11 +42,13 @@ export default function AdminPurchases() {
   });
   const [filterSup, setFilterSup] = useState("");
   const [expandedBill, setExpandedBill] = useState(null);
+  const [billPayments, setBillPayments] = useState({}); // bill_id -> payments[]
 
   // ── Pay-bill state ──
   const [payDialog, setPayDialog] = useState(null);
   const [payAmount, setPayAmount] = useState("");
   const [payNote, setPayNote] = useState("");
+  const [payDate, setPayDate] = useState(new Date().toISOString().split("T")[0]);
 
   // ── Loaders ──
   const loadSuppliers = () => api.get("/suppliers").then((r) => setSuppliers(r.data));
@@ -54,8 +57,28 @@ export default function AdminPurchases() {
     api.get(`/purchase-bills${q}`).then((r) => setBills(r.data));
   };
 
+  const loadBillPayments = async (billId) => {
+    try {
+      const r = await api.get(`/supplier-payments?bill_id=${billId}`);
+      setBillPayments((prev) => ({ ...prev, [billId]: r.data }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => { loadSuppliers(); }, []);
   useEffect(() => { if (tab === "Bills") loadBills(); }, [tab, filterSup]);
+
+  // When a bill is expanded, fetch its payments
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const toggleExpand = (billId) => {
+    if (expandedBill === billId) {
+      setExpandedBill(null);
+    } else {
+      setExpandedBill(billId);
+      loadBillPayments(billId);
+    }
+  };
 
   // ── Supplier CRUD ──
   const openAddSup = () => {
@@ -150,6 +173,13 @@ export default function AdminPurchases() {
   };
 
   // ── Supplier payment ──
+  const openPayDialog = (b) => {
+    setPayDialog(b);
+    setPayAmount("");
+    setPayNote("");
+    setPayDate(new Date().toISOString().split("T")[0]);
+  };
+
   const recordPay = async () => {
     if (!payAmount || Number(payAmount) <= 0) return toast.error("Enter a valid amount");
     try {
@@ -158,13 +188,34 @@ export default function AdminPurchases() {
         bill_id: payDialog.id,
         amount: Number(payAmount),
         note: payNote,
-        payment_date: new Date().toISOString().split("T")[0],
+        payment_date: payDate,
       });
       toast.success("Payment recorded");
       setPayDialog(null);
-      setPayAmount("");
-      setPayNote("");
+      // Refresh bill list and payment history for expanded bill
       loadBills();
+      if (expandedBill === payDialog.id) {
+        loadBillPayments(payDialog.id);
+      } else {
+        // Clear cached payments so it reloads next expansion
+        setBillPayments((prev) => {
+          const copy = { ...prev };
+          delete copy[payDialog.id];
+          return copy;
+        });
+      }
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
+  const deletePayment = async (payment, billId) => {
+    if (!window.confirm("Delete this payment record?")) return;
+    try {
+      await api.delete(`/supplier-payments/${payment.id}`);
+      toast.success("Payment deleted");
+      loadBills();
+      loadBillPayments(billId);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
     }
@@ -172,6 +223,8 @@ export default function AdminPurchases() {
 
   const totalBilled = bills.reduce((s, b) => s + b.total, 0);
   const totalUnpaid = bills.filter((b) => !b.paid).reduce((s, b) => s + b.total, 0);
+  const totalPaidAmount = bills.reduce((s, b) => s + (b.paid_amount || 0), 0);
+  const totalRemaining = bills.reduce((s, b) => s + (b.remaining || b.total), 0);
 
   return (
     <div>
@@ -186,7 +239,7 @@ export default function AdminPurchases() {
 
       <PageHeader
         title="Purchases"
-        subtitle="Manage vegetable suppliers, purchase bills & payments."
+        subtitle="Manage vegetable suppliers, purchase bills &amp; payments."
         action={
           <div className="flex gap-2">
             <button
@@ -285,14 +338,22 @@ export default function AdminPurchases() {
       {tab === "Bills" && (
         <div>
           <div className="flex flex-wrap items-start gap-4 mb-5">
-            <div className="flex gap-4">
-              <Card className="p-4 min-w-[150px]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Card className="p-4">
                 <p className="label-cap">Total Billed</p>
-                <p className="font-heading text-2xl font-extrabold text-primary mt-1">{inr(totalBilled)}</p>
+                <p className="font-heading text-xl font-extrabold text-primary mt-1">{inr(totalBilled)}</p>
               </Card>
-              <Card className="p-4 min-w-[150px]">
-                <p className="label-cap">Outstanding</p>
-                <p className="font-heading text-2xl font-extrabold text-[#9c531f] mt-1">{inr(totalUnpaid)}</p>
+              <Card className="p-4">
+                <p className="label-cap">Paid Amount</p>
+                <p className="font-heading text-xl font-extrabold text-emerald-600 mt-1">{inr(totalPaidAmount)}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="label-cap">Remaining</p>
+                <p className="font-heading text-xl font-extrabold text-[#9c531f] mt-1">{inr(totalRemaining)}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="label-cap">Unpaid Bills</p>
+                <p className="font-heading text-xl font-extrabold text-[#9c531f] mt-1">{bills.filter((b) => !b.paid).length}</p>
               </Card>
             </div>
             <div className="no-print">
@@ -360,21 +421,33 @@ export default function AdminPurchases() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
+                    <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+                      {/* Payment summary */}
+                      <div className="hidden sm:flex flex-col items-end">
+                        <p className="label-cap">Total / Paid / Remaining</p>
+                        <p className="text-sm font-medium">
+                          <span className="text-primary font-bold">{inr(b.total)}</span>
+                          <span className="text-muted-foreground mx-1">/</span>
+                          <span className="text-emerald-600">{inr(b.paid_amount || 0)}</span>
+                          <span className="text-muted-foreground mx-1">/</span>
+                          <span className={b.remaining > 0 ? "text-[#9c531f] font-semibold" : "text-primary"}>
+                            {inr(b.remaining || 0)}
+                          </span>
+                        </p>
+                      </div>
+                      {/* Mobile: just show total */}
+                      <div className="flex sm:hidden text-right flex-col">
                         <p className="label-cap">Total</p>
                         <p className="font-heading font-bold text-lg text-primary">{inr(b.total)}</p>
                       </div>
                       <button
-                        onClick={() => setPayDialog(b)}
-                        className="no-print rounded-lg border border-primary text-primary px-3 py-1.5 text-xs font-semibold hover:bg-primary/10 transition-all"
+                        onClick={() => openPayDialog(b)}
+                        className="no-print rounded-lg border border-primary text-primary px-3 py-1.5 text-xs font-semibold hover:bg-primary/10 transition-all flex items-center gap-1"
                       >
-                        Record Pay
+                        <IndianRupee className="h-3.5 w-3.5" /> Record Pay
                       </button>
                       <button
-                        onClick={() =>
-                          setExpandedBill(expandedBill === b.id ? null : b.id)
-                        }
+                        onClick={() => toggleExpand(b.id)}
                         className="p-1.5 rounded-lg hover:bg-secondary"
                       >
                         <ChevronDown
@@ -391,9 +464,22 @@ export default function AdminPurchases() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Mobile payment summary */}
+                  <div className="sm:hidden flex items-center gap-3 px-4 pb-3 text-sm">
+                    <span className="text-muted-foreground">Paid:</span>
+                    <span className="text-emerald-600 font-semibold">{inr(b.paid_amount || 0)}</span>
+                    <span className="text-muted-foreground">Remaining:</span>
+                    <span className={b.remaining > 0 ? "text-[#9c531f] font-semibold" : "text-primary font-semibold"}>
+                      {inr(b.remaining || 0)}
+                    </span>
+                  </div>
+
                   {(expandedBill === b.id) && (
                     <div className="px-5 pb-4 border-t border-border">
-                      <div className="mt-3 bg-secondary/40 rounded-xl overflow-hidden">
+                      {/* Items table */}
+                      <p className="label-cap mt-3 mb-2">Items</p>
+                      <div className="bg-secondary/40 rounded-xl overflow-hidden">
                         <div className="grid grid-cols-12 px-4 py-2 text-xs font-semibold text-muted-foreground border-b border-border">
                           <span className="col-span-5">Item</span>
                           <span className="col-span-2 text-right">Qty</span>
@@ -419,6 +505,54 @@ export default function AdminPurchases() {
                       {b.notes && (
                         <p className="text-sm text-muted-foreground mt-2">Note: {b.notes}</p>
                       )}
+
+                      {/* Payment history */}
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="label-cap">Payment History</p>
+                          <button
+                            onClick={() => openPayDialog(b)}
+                            className="no-print text-xs text-primary font-semibold flex items-center gap-1 hover:underline"
+                          >
+                            <Plus className="h-3 w-3" /> Add Payment
+                          </button>
+                        </div>
+                        {(billPayments[b.id] || []).length === 0 ? (
+                          <p className="text-sm text-muted-foreground py-2">No payments recorded yet.</p>
+                        ) : (
+                          <div className="bg-secondary/40 rounded-xl overflow-hidden">
+                            <div className="grid grid-cols-12 px-4 py-2 text-xs font-semibold text-muted-foreground border-b border-border">
+                              <span className="col-span-3">Date</span>
+                              <span className="col-span-3 text-right">Amount</span>
+                              <span className="col-span-5">Note</span>
+                              <span className="col-span-1"></span>
+                            </div>
+                            {(billPayments[b.id] || []).map((pay) => (
+                              <div key={pay.id} className="grid grid-cols-12 px-4 py-2 text-sm border-b border-border last:border-0 items-center">
+                                <span className="col-span-3 text-muted-foreground">{pay.payment_date}</span>
+                                <span className="col-span-3 text-right font-semibold text-emerald-600">{inr(pay.amount)}</span>
+                                <span className="col-span-5 text-muted-foreground truncate">{pay.note || "—"}</span>
+                                <span className="col-span-1 flex justify-end">
+                                  <button
+                                    onClick={() => deletePayment(pay, b.id)}
+                                    className="no-print p-1 rounded hover:bg-destructive/10 text-destructive"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </span>
+                              </div>
+                            ))}
+                            <div className="grid grid-cols-12 px-4 py-2 text-sm font-semibold bg-secondary/60 border-t border-border">
+                              <span className="col-span-3">Total Paid</span>
+                              <span className="col-span-3 text-right text-emerald-600">{inr(b.paid_amount || 0)}</span>
+                              <span className="col-span-3">Remaining</span>
+                              <span className={`col-span-3 text-right ${ b.remaining > 0 ? "text-[#9c531f]" : "text-primary" }`}>
+                                {inr(b.remaining || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </Card>
@@ -598,16 +732,38 @@ export default function AdminPurchases() {
           <DialogHeader>
             <DialogTitle className="font-heading">Record Supplier Payment</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground -mt-1">
-            {payDialog?.supplier_name} &middot; Bill total {inr(payDialog?.total)}
-          </p>
+          <div className="bg-secondary/50 rounded-xl p-3 -mt-1">
+            <p className="text-sm font-semibold">{payDialog?.supplier_name}</p>
+            <div className="flex justify-between text-sm mt-1.5">
+              <span className="text-muted-foreground">Bill Total</span>
+              <span className="font-semibold text-primary">{inr(payDialog?.total)}</span>
+            </div>
+            <div className="flex justify-between text-sm mt-1">
+              <span className="text-muted-foreground">Already Paid</span>
+              <span className="font-semibold text-emerald-600">{inr(payDialog?.paid_amount || 0)}</span>
+            </div>
+            <div className="flex justify-between text-sm mt-1">
+              <span className="text-muted-foreground">Remaining</span>
+              <span className="font-semibold text-[#9c531f]">{inr(payDialog?.remaining || payDialog?.total)}</span>
+            </div>
+          </div>
           <div className="space-y-3 mt-1">
             <div>
-              <label className="label-cap">Amount (₹)</label>
+              <label className="label-cap">Payment Amount (₹) *</label>
               <input
                 type="number"
                 value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value)}
+                placeholder={`Max: ${payDialog?.remaining || payDialog?.total}`}
+                className="mt-1.5 w-full rounded-xl border border-input bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <label className="label-cap">Payment Date</label>
+              <input
+                type="date"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
                 className="mt-1.5 w-full rounded-xl border border-input bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>

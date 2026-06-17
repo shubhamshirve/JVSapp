@@ -850,7 +850,25 @@ async def list_purchase_bills(supplier_id: Optional[str] = None, user: dict = De
     if supplier_id:
         query["supplier_id"] = supplier_id
     bills = await db.purchase_bills.find(query).sort("bill_date", -1).to_list(2000)
-    return [serialize(b) for b in bills]
+    # Enrich each bill with payment summary
+    bill_ids = [b["_id"] for b in bills]
+    # Fetch all payments for these bills in one query
+    payments_cursor = await db.supplier_payments.find({"bill_id": {"$in": bill_ids}}).to_list(10000)
+    # Build a map: bill_id -> list of payments
+    pay_map: dict = {}
+    for p in payments_cursor:
+        bid = p.get("bill_id", "")
+        pay_map.setdefault(bid, []).append(p)
+
+    result = []
+    for b in bills:
+        sb = serialize(b)
+        bill_pays = pay_map.get(sb["id"], [])
+        paid_amount = round(sum(float(p.get("amount", 0)) for p in bill_pays), 2)
+        sb["paid_amount"] = paid_amount
+        sb["remaining"] = round(sb["total"] - paid_amount, 2)
+        result.append(sb)
+    return result
 
 
 @api_router.post("/purchase-bills")
@@ -917,10 +935,12 @@ async def delete_purchase_bill(bid: str, user: dict = Depends(require_admin)):
 
 # ----------------------------- Supplier Payments -----------------------------
 @api_router.get("/supplier-payments")
-async def list_supplier_payments(supplier_id: Optional[str] = None, user: dict = Depends(require_admin)):
+async def list_supplier_payments(supplier_id: Optional[str] = None, bill_id: Optional[str] = None, user: dict = Depends(require_admin)):
     query = {}
     if supplier_id:
         query["supplier_id"] = supplier_id
+    if bill_id:
+        query["bill_id"] = bill_id
     payments = await db.supplier_payments.find(query).sort("payment_date", -1).to_list(2000)
     return [serialize(p) for p in payments]
 
