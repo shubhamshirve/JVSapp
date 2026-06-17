@@ -319,20 +319,35 @@ frontend:
         agent: "testing"
         comment: "✅ Code implementation verified (lines 189-195): button with title='Print Invoice', FileText icon, calls printInvoice(o). Unable to visually verify on UI as no orders exist in system, but implementation is correct and will work when orders are present."
 
-  - task: "Login rate limiting"
+  - task: "Supplier bill payment records - paid_amount tracking and payment history"
     implemented: true
     working: true
-    file: "backend/server.py"
+    file: "backend/server.py, frontend/src/pages/admin/AdminPurchases.jsx"
     stuck_count: 0
-    priority: "medium"
+    priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Rate limiting implemented on login endpoint"
+        comment: "Enhanced GET /api/purchase-bills to return paid_amount and remaining fields. Added bill_id filter to /api/supplier-payments. Frontend updated to show payment history in expanded bill view, display paid_amount/remaining in bill cards, improved Record Pay dialog with remaining balance info."
       - working: true
         agent: "testing"
-        comment: "✅ Rate limiting verified: Multiple failed login attempts show 'Invalid email or password' error message. Normal login with correct credentials (admin@jivdani.com / Jivdani@2026) works correctly and redirects to admin dashboard."
+        comment: "✅ All verified: 4 summary cards (Total Billed/Paid Amount/Remaining/Unpaid Bills) show correctly. Bill cards show Total/Paid/Remaining. Expand button shows Items + Payment History sections with date, amount, note. Record Pay dialog shows remaining balance. Delete payment button visible."
+
+  - task: "Print Purchase List - Excel-like preview modal"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/admin/AdminPurchaseList.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Replaced window.print() with print preview dialog. Modal shows Excel-like HTML table with dark green headers, alternating row colors, all columns (#, Vegetable, Total Qty, Unit, Rate, Est. Cost, Restaurants), total row. Print button opens new window with formatted table."
+      - working: true
+        agent: "testing"
+        comment: "✅ Print button opens modal (not direct print). Modal shows Excel-like table with green headers, 7 columns, alternating colors, total row. Print/Save PDF button and Close button both functional."
 
 metadata:
   created_by: "main_agent"
