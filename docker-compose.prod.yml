@@ -3,17 +3,17 @@
 
 services:
   mongo:
-    image: mongo:7
+    image: mongo:4.4
     container_name: jvs_mongodb
     restart: unless-stopped
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --eval 'quit(db.runCommand({ping:1}).ok ? 0 : 1)' 2>/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 12
-      start_period: 60s
+      test: ["CMD", "mongo", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     logging:
       driver: "json-file"
       options:
