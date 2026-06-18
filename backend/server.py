@@ -1234,6 +1234,7 @@ async def seed_demo_data():
     logger.info("  Demo restaurant logins: krishna@palace.com / ganesh@dhaba.com  (password: Demo@2026)")
 
 
+@app.on_event("startup")
 async def startup():
     # Wait for MongoDB to be reachable (resilient against startup race / restart)
     import asyncio
