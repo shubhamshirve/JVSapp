@@ -22,7 +22,11 @@ load_dotenv(ROOT_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+
+# DEMO mode: if DEMO=true, use isolated 'demodb' with sample data
+IS_DEMO = os.environ.get("DEMO", "false").strip().lower() == "true"
+_db_name = "demodb" if IS_DEMO else os.environ['DB_NAME']
+db = client[_db_name]
 
 JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGORITHM = "HS256"
@@ -310,6 +314,13 @@ class ExpenseUpdateInput(BaseModel):
     expense_date: Optional[str] = None
     bill_ref: Optional[str] = None
     notes: Optional[str] = None
+
+
+# ----------------------------- Config Route -----------------------------
+@api_router.get("/config")
+async def get_config():
+    """Returns public app configuration (demo mode flag)."""
+    return {"demo": IS_DEMO}
 
 
 # ----------------------------- Auth Routes -----------------------------
@@ -1108,7 +1119,121 @@ DEFAULT_VEGETABLES = [
 ]
 
 
-@app.on_event("startup")
+# ----------------------------- Demo Data Seeder -----------------------------
+async def seed_demo_data():
+    """Populate demodb with realistic sample data. Runs only when collections are empty."""
+    if await db.restaurants.count_documents({}) > 0:
+        logger.info("Demo data already present — skipping seed")
+        return
+
+    logger.info("Seeding demo database with sample data...")
+    today = date.today()
+    d = lambda days=0: (today - timedelta(days=days)).isoformat()
+
+    # --- Vegetables ---
+    veg_map = {}  # name -> _id
+    async for v in db.vegetables.find():
+        veg_map[v["name"]] = v["_id"]
+
+    def veg(name): return veg_map.get(name, "")
+
+    # --- Restaurants ---
+    r1 = str(uuid.uuid4()); r2 = str(uuid.uuid4()); r3 = str(uuid.uuid4())
+    demo_password = hash_password("Demo@2026")
+
+    await db.restaurants.insert_many([
+        {"_id": r1, "name": "Hotel Krishna Palace",  "address": "Sitabuldi, Nagpur", "phone": "9876543210", "status": "confirmed", "created_at": now_utc().isoformat()},
+        {"_id": r2, "name": "Shree Ganesh Dhaba",    "address": "Dharampeth, Nagpur","phone": "9123456789", "status": "confirmed", "created_at": now_utc().isoformat()},
+        {"_id": r3, "name": "Royal Veg Restaurant",  "address": "Itwari, Nagpur",    "phone": "9000011112", "status": "pending",   "created_at": now_utc().isoformat()},
+    ])
+
+    # Restaurant user accounts
+    await db.users.insert_many([
+        {"_id": str(uuid.uuid4()), "name": "Krishna Palace",  "email": "krishna@palace.com",  "password_hash": demo_password, "role": "restaurant", "restaurant_id": r1, "status": "active",  "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "name": "Ganesh Dhaba",    "email": "ganesh@dhaba.com",    "password_hash": demo_password, "role": "restaurant", "restaurant_id": r2, "status": "active",  "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "name": "Royal Veg",       "email": "royal@vegrest.com",   "password_hash": demo_password, "role": "restaurant", "restaurant_id": r3, "status": "pending", "created_at": now_utc().isoformat()},
+    ])
+
+    # --- Orders ---
+    def make_item(name, qty, unit="kg"):
+        rate = next((v["rate"] for v in DEFAULT_VEGETABLES if v["name"] == name), 30)
+        return {"vegetable_id": veg(name), "name": name, "qty": qty, "unit": unit, "rate": rate, "amount": round(qty * rate, 2)}
+
+    orders = [
+        {"_id": str(uuid.uuid4()), "restaurant_id": r1, "restaurant_name": "Hotel Krishna Palace",
+         "items": [make_item("Tomato", 10), make_item("Potato", 20), make_item("Onion", 15)],
+         "delivery_date": d(0), "status": "pending",   "notes": "Deliver before 8 AM", "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "restaurant_id": r2, "restaurant_name": "Shree Ganesh Dhaba",
+         "items": [make_item("Capsicum", 5), make_item("Cauliflower", 8), make_item("Green Peas", 6)],
+         "delivery_date": d(0), "status": "confirmed", "notes": "", "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "restaurant_id": r1, "restaurant_name": "Hotel Krishna Palace",
+         "items": [make_item("Coriander", 3), make_item("Spinach (Palak)", 4), make_item("Green Chilli", 2)],
+         "delivery_date": d(1), "status": "delivered", "notes": "", "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "restaurant_id": r2, "restaurant_name": "Shree Ganesh Dhaba",
+         "items": [make_item("Ginger", 2), make_item("Garlic", 3), make_item("Lemon", 5)],
+         "delivery_date": d(2), "status": "delivered", "notes": "", "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "restaurant_id": r1, "restaurant_name": "Hotel Krishna Palace",
+         "items": [make_item("Lady Finger (Bhindi)", 7), make_item("Brinjal (Baingan)", 6), make_item("Carrot", 8)],
+         "delivery_date": d(3), "status": "delivered", "notes": "", "created_at": now_utc().isoformat()},
+    ]
+    # Set totals
+    for o in orders:
+        o["total"] = round(sum(i["amount"] for i in o["items"]), 2)
+    await db.orders.insert_many(orders)
+
+    # Payments for delivered orders
+    for o in orders:
+        if o["status"] == "delivered":
+            await db.payments.insert_one({
+                "_id": str(uuid.uuid4()),
+                "restaurant_id": o["restaurant_id"],
+                "restaurant_name": o["restaurant_name"],
+                "order_id": o["_id"],
+                "amount": o["total"],
+                "payment_date": d(0),
+                "note": "Cash",
+                "created_at": now_utc().isoformat(),
+            })
+
+    # --- Suppliers ---
+    s1 = str(uuid.uuid4()); s2 = str(uuid.uuid4())
+    await db.suppliers.insert_many([
+        {"_id": s1, "name": "Nagpur Sabji Mandi", "phone": "9988776655", "address": "Cotton Market, Nagpur", "notes": "Reliable daily supplier", "created_at": now_utc().isoformat()},
+        {"_id": s2, "name": "Wardha Road Farms",  "phone": "9876001234", "address": "Wardha Road, Nagpur",   "notes": "Organic produce", "created_at": now_utc().isoformat()},
+    ])
+
+    # --- Purchase Bills ---
+    b1 = str(uuid.uuid4()); b2 = str(uuid.uuid4()); b3 = str(uuid.uuid4())
+    await db.purchase_bills.insert_many([
+        {"_id": b1, "supplier_id": s1, "supplier_name": "Nagpur Sabji Mandi", "bill_no": "NM-001",
+         "bill_date": d(3), "items": [{"name": "Tomato", "qty": 50, "unit": "kg", "rate": 28, "amount": 1400}, {"name": "Potato", "qty": 40, "unit": "kg", "rate": 22, "amount": 880}],
+         "total": 2280.0, "paid": False, "notes": "", "created_at": now_utc().isoformat()},
+        {"_id": b2, "supplier_id": s1, "supplier_name": "Nagpur Sabji Mandi", "bill_no": "NM-002",
+         "bill_date": d(1), "items": [{"name": "Onion", "qty": 30, "unit": "kg", "rate": 32, "amount": 960}, {"name": "Capsicum", "qty": 10, "unit": "kg", "rate": 50, "amount": 500}],
+         "total": 1460.0, "paid": True,  "notes": "", "created_at": now_utc().isoformat()},
+        {"_id": b3, "supplier_id": s2, "supplier_name": "Wardha Road Farms", "bill_no": "WF-001",
+         "bill_date": d(2), "items": [{"name": "Spinach (Palak)", "qty": 20, "unit": "kg", "rate": 28, "amount": 560}, {"name": "Coriander", "qty": 15, "unit": "kg", "rate": 45, "amount": 675}],
+         "total": 1235.0, "paid": False, "notes": "Organic batch", "created_at": now_utc().isoformat()},
+    ])
+
+    # --- Supplier Payments ---
+    await db.supplier_payments.insert_many([
+        {"_id": str(uuid.uuid4()), "supplier_id": s1, "bill_id": b1, "amount": 1500.0, "payment_date": d(1), "note": "Advance cash", "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "supplier_id": s1, "bill_id": b2, "amount": 1460.0, "payment_date": d(0), "note": "Full payment - NEFT", "created_at": now_utc().isoformat()},
+    ])
+
+    # --- Expenses ---
+    await db.expenses.insert_many([
+        {"_id": str(uuid.uuid4()), "category": "Transport",  "amount": 1200.0, "description": "Diesel for delivery van",   "date": d(1), "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "category": "Maintenance","amount": 3500.0, "description": "Vehicle service & repair",  "date": d(5), "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "category": "Supplies",   "amount":  450.0, "description": "Packing materials & bags",  "date": d(2), "created_at": now_utc().isoformat()},
+        {"_id": str(uuid.uuid4()), "category": "Labour",     "amount": 2400.0, "description": "Helper wages (weekly)",      "date": d(0), "created_at": now_utc().isoformat()},
+    ])
+
+    logger.info("Demo data seeded successfully")
+    logger.info("  Demo restaurant logins: krishna@palace.com / ganesh@dhaba.com  (password: Demo@2026)")
+
+
 async def startup():
     # Wait for MongoDB to be reachable (resilient against startup race / restart)
     import asyncio
@@ -1155,6 +1280,7 @@ async def startup():
     if await db.vegetables.count_documents({}) == 0:
         for v in DEFAULT_VEGETABLES:
             await db.vegetables.insert_one({
+                "_id": str(uuid.uuid4()),
                 "name": v["name"],
                 "unit": "kg",
                 "category": v["category"],
@@ -1164,6 +1290,10 @@ async def startup():
                 "created_at": now_utc().isoformat(),
             })
         logger.info("Seeded default vegetables")
+
+    if IS_DEMO:
+        logger.info("DEMO mode active — using database: demodb")
+        await seed_demo_data()
 
 
 @app.on_event("shutdown")

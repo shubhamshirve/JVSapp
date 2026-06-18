@@ -37,6 +37,7 @@ services:
       ADMIN_PASSWORD_RESET: "${ADMIN_PASSWORD_RESET:-}"
       JWT_SECRET:      "${JWT_SECRET}"
       CORS_ORIGINS:    "${SITE_URL:-https://app.mmpf.in}"
+      DEMO:            "${DEMO:-false}"
     depends_on:
       mongo:
         condition: service_healthy
