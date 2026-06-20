@@ -713,11 +713,19 @@ async def admin_stats(user: dict = Depends(require_admin)):
 
 
 @api_router.get("/admin/purchase-list")
-async def purchase_list(delivery_date: Optional[str] = None, user: dict = Depends(require_admin)):
+async def purchase_list(
+    delivery_date: Optional[str] = None,
+    mode: str = "pending",           # "pending" = pending+confirmed | "delivered" = completed
+    user: dict = Depends(require_admin)
+):
     target = delivery_date or tomorrow_str()
+    if mode == "delivered":
+        status_filter = ["delivered"]
+    else:
+        status_filter = ["pending", "confirmed"]
     orders = await db.orders.find({
         "delivery_date": target,
-        "status": {"$in": ["pending", "confirmed"]},
+        "status": {"$in": status_filter},
     }).to_list(5000)
     agg = {}
     restaurants = set()
@@ -750,6 +758,7 @@ async def purchase_list(delivery_date: Optional[str] = None, user: dict = Depend
     items.sort(key=lambda x: x["name"])
     return {
         "date": target,
+        "mode": mode,
         "order_count": len(orders),
         "restaurant_count": len(restaurants),
         "total_amount": round(sum(i["est_amount"] for i in items), 2),
